@@ -13,6 +13,10 @@
   <!-- Nice-to-haves (Android/Chrome + iOS-ish) -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GymLog" />
+
+  <!-- Optional: you can add an iOS icon later if you want -->
+  <!-- <link rel="apple-touch-icon" href="./icon-192.png" /> -->
 
   <style>
     body {
@@ -70,6 +74,7 @@
       background: #7c3aed;
       color: white;
       font-weight: 600;
+      cursor: pointer;
     }
 
     button.secondary {
@@ -80,11 +85,12 @@
     .status {
       font-size: 0.95rem;
       opacity: 0.85;
+      min-height: 1.2em;
     }
 
     .tiny {
       font-size: 0.85rem;
-      opacity: 0.7;
+      opacity: 0.75;
       margin-top: 10px;
       line-height: 1.35;
     }
@@ -93,6 +99,10 @@
       background: rgba(255,255,255,0.08);
       padding: 2px 6px;
       border-radius: 6px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
   </style>
 </head>
@@ -111,7 +121,7 @@ Notes: felt good"
   ></textarea>
 
   <div class="row">
-    <button id="save">Save</button>
+    <button id="save" type="button">Save</button>
     <button class="secondary" id="clear" type="button">Clear</button>
     <div class="status" id="status"></div>
   </div>
@@ -130,9 +140,10 @@ Notes: felt good"
     // Load saved data on startup
     textarea.value = localStorage.getItem(STORAGE_KEY) || "";
 
-    function flashStatus(msg) {
+    function flashStatus(msg, ms = 1500) {
       statusEl.textContent = msg;
-      setTimeout(() => (statusEl.textContent = ""), 1500);
+      window.clearTimeout(flashStatus._t);
+      flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);
     }
 
     function saveNow() {
@@ -140,7 +151,6 @@ Notes: felt good"
       flashStatus("Saved locally ✔️");
     }
 
-    // Save button
     saveBtn.addEventListener("click", saveNow);
 
     // Auto-save as you type (debounced)
@@ -149,40 +159,44 @@ Notes: felt good"
       clearTimeout(t);
       t = setTimeout(() => {
         localStorage.setItem(STORAGE_KEY, textarea.value);
-        statusEl.textContent = "Auto-saved…";
-        setTimeout(() => (statusEl.textContent = ""), 800);
+        flashStatus("Auto-saved…", 800);
       }, 300);
     });
 
-    // Clear
     clearBtn.addEventListener("click", () => {
       textarea.value = "";
       localStorage.removeItem(STORAGE_KEY);
       flashStatus("Cleared ✔️");
     });
 
-    // --- Service worker registration (needed for installability) ---
-    // Put sw.js in the SAME folder as this index.html
+    // --- Service worker registration (helps installability + offline) ---
+    // sw.js must be in the same folder as this index.html
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", async () => {
         try {
-          const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
-          // Optional: show a tiny indicator
-          // console.log("SW registered:", reg.scope);
+          const reg = await navigator.serviceWorker.register("./sw.js");
+          // Optional: you can show this if you want
+          // console.log("Service worker registered:", reg.scope);
         } catch (err) {
-          console.warn("SW registration failed:", err);
+          console.warn("Service worker registration failed:", err);
+          flashStatus("SW failed to register (check console) ⚠️", 2000);
         }
       });
     }
 
-    // Tiny debug info to help you confirm you're in standalone mode
+    // Tiny debug info to help confirm install / context
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
 
+    const href = window.location.href;
     pwaInfo.innerHTML = isStandalone
       ? "✅ Running as an installed app (standalone)."
-      : "ℹ️ Not installed yet. In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>If you don’t see it, check <code>manifest.json</code> + <code>sw.js</code> are loading with 200 OK.";
+      : `ℹ️ Not installed yet.<br/>
+         In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>
+         If you don’t see it, confirm these load with 200 OK:<br/>
+         • <code>manifest.json</code> • <code>sw.js</code> • icons.<br/>
+         <span class="mono">URL:</span> <code>${href}</code>`;
   </script>
 </body>
 </html>
