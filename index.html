@@ -126,6 +126,14 @@ Notes: felt good"
     <div class="status" id="status"></div>
   </div>
 
+  <div class="row">
+    <button id="backupDrive" class="secondary" type="button">Backup to Drive</button>
+    <button id="restoreDrive" class="secondary" type="button">Restore from Drive</button>
+    <button id="exportBtn" class="secondary" type="button">Export (.txt)</button>
+    <button id="importBtn" class="secondary" type="button">Import (.txt)</button>
+    <input id="fileInput" type="file" accept="text/plain" style="display:none" />
+  </div>
+
   <div class="tiny" id="pwaInfo"></div>
 
   <script>
@@ -197,6 +205,202 @@ Notes: felt good"
          If you don’t see it, confirm these load with 200 OK:<br/>
          • <code>manifest.json</code> • <code>sw.js</code> • icons.<br/>
          <span class="mono">URL:</span> <code>${href}</code>`;
+  </script>
+  <!-- Google Identity Services (for Drive backup) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <script>
+    // --- Backup / Restore helpers ---
+    // STORAGE_KEY and textarea exist in the outer script above
+    const backupBtn = document.getElementById('backupDrive');
+    const restoreBtn = document.getElementById('restoreDrive');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    // Google Drive OAuth client id placeholder. Replace with your own client ID.
+    const GSI_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+    const GSI_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // creates files visible in Drive
+
+    let gsiTokenClient = null;
+    let gsiAccessToken = null;
+
+    function initGsiClient() {
+      if (!window.google || !google.accounts || !google.accounts.oauth2) return;
+      gsiTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GSI_CLIENT_ID,
+        scope: GSI_SCOPE,
+        callback: (tokenResponse) => {
+          if (tokenResponse && tokenResponse.access_token) {
+            gsiAccessToken = tokenResponse.access_token;
+            flashStatus('Google Drive: signed in ✔️', 2000);
+          } else {
+            flashStatus('Google Drive: sign-in failed', 3000);
+          }
+        }
+      });
+    }
+
+    window.addEventListener('load', () => {
+      // Give the GSI script a moment and init
+      setTimeout(initGsiClient, 600);
+    });
+
+    function requestDriveToken(interactive = true) {
+      if (!gsiTokenClient) return flashStatus('GSI not ready', 2000);
+      gsiTokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+    }
+
+    // Upload backup text to Drive (creates a file in user's Drive root)
+    async function uploadBackupToDrive(text, filename = `gym-log-backup-${new Date().toISOString()}.txt`) {
+      if (!gsiAccessToken) {
+        requestDriveToken(true);
+        return;
+      }
+
+      const metadata = { name: filename };
+      const boundary = '-------314159265358979323846';
+      const delimiter = `\r\n--${boundary}\r\n`;
+      const closeDelimiter = `\r\n--${boundary}--`;
+
+      const multipartRequestBody =
+        delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) +
+        '\r\n' +
+        delimiter +
+        'Content-Type: text/plain\r\n\r\n' +
+        text +
+        closeDelimiter;
+
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + gsiAccessToken,
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body: multipartRequestBody
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error('Drive upload failed', res.status, txt);
+        flashStatus('Drive upload failed', 3000);
+        return null;
+      }
+
+      const payload = await res.json();
+      flashStatus('Backup uploaded to Drive ✔️', 2500);
+      return payload;
+    }
+
+    // List files created by this app (search by name prefix)
+    async function listBackups() {
+      if (!gsiAccessToken) {
+        requestDriveToken(true);
+        return [];
+      }
+      const q = `name contains 'gym-log-backup'`;
+      const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)`;
+      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + gsiAccessToken } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.files || [];
+    }
+
+    async function downloadBackup(fileId) {
+      if (!gsiAccessToken) {
+        requestDriveToken(true);
+        return null;
+      }
+      const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + gsiAccessToken } });
+      if (!res.ok) {
+        flashStatus('Download failed', 3000);
+        return null;
+      }
+      return await res.text();
+    }
+
+    // --- Export / Import (local) ---
+    function exportToFile(text, filename = 'gym-log-export.txt') {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      flashStatus('Exported .txt ✔️', 1800);
+    }
+
+    fileInput.addEventListener('change', async (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const txt = await f.text();
+      textarea.value = txt;
+      localStorage.setItem(STORAGE_KEY, txt);
+      flashStatus('Imported .txt ✔️', 1800);
+      fileInput.value = '';
+    });
+
+    // --- button bindings ---
+    exportBtn.addEventListener('click', () => exportToFile(textarea.value));
+
+    importBtn.addEventListener('click', () => fileInput.click());
+
+    backupBtn.addEventListener('click', async () => {
+      // If client id not replaced, notify user
+      if (GSI_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
+        flashStatus('Please set your Google Client ID in the code to use Drive backup.', 4000);
+        return;
+      }
+      // Ensure token client is initialized
+      if (!gsiTokenClient) initGsiClient();
+      if (!gsiAccessToken) {
+        requestDriveToken(true);
+        // Wait a short while for interactive consent to complete before attempting upload
+        setTimeout(() => uploadBackupToDrive(textarea.value), 1200);
+        return;
+      }
+      await uploadBackupToDrive(textarea.value);
+    });
+
+    restoreBtn.addEventListener('click', async () => {
+      if (GSI_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
+        flashStatus('Please set your Google Client ID in the code to use Drive restore.', 4000);
+        return;
+      }
+      if (!gsiTokenClient) initGsiClient();
+      if (!gsiAccessToken) {
+        requestDriveToken(true);
+        setTimeout(async () => {
+          const files = await listBackups();
+          if (!files || files.length === 0) return flashStatus('No backups found', 2000);
+          // pick the most recent by modifiedTime
+          files.sort((a,b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+          const content = await downloadBackup(files[0].id);
+          if (content != null) {
+            textarea.value = content;
+            localStorage.setItem(STORAGE_KEY, content);
+            flashStatus('Restored from Drive ✔️', 2000);
+          }
+        }, 1200);
+        return;
+      }
+
+      const files = await listBackups();
+      if (!files || files.length === 0) return flashStatus('No backups found', 2000);
+      files.sort((a,b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+      const content = await downloadBackup(files[0].id);
+      if (content != null) {
+        textarea.value = content;
+        localStorage.setItem(STORAGE_KEY, content);
+        flashStatus('Restored from Drive ✔️', 2000);
+      }
+    });
   </script>
 </body>
 </html>
