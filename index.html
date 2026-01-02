@@ -8,7 +8,11 @@
 
   <!-- PWA basics -->
   <meta name="theme-color" content="#111827" />
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- Nice-to-haves (Android/Chrome + iOS-ish) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
   <style>
     body {
@@ -20,39 +24,82 @@
     }
 
     h1 {
-      margin-top: 0;
+      margin: 0 0 12px;
       font-size: 1.4rem;
+    }
+
+    .hint {
+      margin: 0 0 12px;
+      opacity: 0.75;
+      font-size: 0.95rem;
+      line-height: 1.3;
     }
 
     textarea {
       width: 100%;
-      min-height: 200px;
+      min-height: 240px;
       padding: 12px;
       font-size: 16px;
-      border-radius: 8px;
-      border: none;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #f9fafb;
+      outline: none;
       resize: vertical;
+      box-sizing: border-box;
+    }
+
+    textarea:focus {
+      border-color: rgba(124, 58, 237, 0.7);
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
     button {
-      margin-top: 12px;
       padding: 12px 16px;
       font-size: 16px;
-      border-radius: 8px;
+      border-radius: 10px;
       border: none;
       background: #7c3aed;
       color: white;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.12);
+      color: #f9fafb;
     }
 
     .status {
-      margin-top: 8px;
-      font-size: 0.9rem;
-      opacity: 0.8;
+      font-size: 0.95rem;
+      opacity: 0.85;
+    }
+
+    .tiny {
+      font-size: 0.85rem;
+      opacity: 0.7;
+      margin-top: 10px;
+      line-height: 1.35;
+    }
+
+    code {
+      background: rgba(255,255,255,0.08);
+      padding: 2px 6px;
+      border-radius: 6px;
     }
   </style>
 </head>
+
 <body>
   <h1>🏋️ Gym Log</h1>
+  <p class="hint">Type your workout notes. It auto-saves locally on this device.</p>
 
   <textarea
     id="log"
@@ -63,27 +110,79 @@ Bench Press
 Notes: felt good"
   ></textarea>
 
-  <button id="save">Save</button>
-  <div class="status" id="status"></div>
+  <div class="row">
+    <button id="save">Save</button>
+    <button class="secondary" id="clear" type="button">Clear</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="tiny" id="pwaInfo"></div>
 
   <script>
     const STORAGE_KEY = "gym-log";
 
     const textarea = document.getElementById("log");
-    const status = document.getElementById("status");
+    const statusEl = document.getElementById("status");
     const saveBtn = document.getElementById("save");
+    const clearBtn = document.getElementById("clear");
+    const pwaInfo = document.getElementById("pwaInfo");
 
     // Load saved data on startup
     textarea.value = localStorage.getItem(STORAGE_KEY) || "";
 
-    saveBtn.addEventListener("click", () => {
-      localStorage.setItem(STORAGE_KEY, textarea.value);
-      status.textContent = "Saved locally ✔️";
+    function flashStatus(msg) {
+      statusEl.textContent = msg;
+      setTimeout(() => (statusEl.textContent = ""), 1500);
+    }
 
-      setTimeout(() => {
-        status.textContent = "";
-      }, 1500);
+    function saveNow() {
+      localStorage.setItem(STORAGE_KEY, textarea.value);
+      flashStatus("Saved locally ✔️");
+    }
+
+    // Save button
+    saveBtn.addEventListener("click", saveNow);
+
+    // Auto-save as you type (debounced)
+    let t = null;
+    textarea.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        localStorage.setItem(STORAGE_KEY, textarea.value);
+        statusEl.textContent = "Auto-saved…";
+        setTimeout(() => (statusEl.textContent = ""), 800);
+      }, 300);
     });
+
+    // Clear
+    clearBtn.addEventListener("click", () => {
+      textarea.value = "";
+      localStorage.removeItem(STORAGE_KEY);
+      flashStatus("Cleared ✔️");
+    });
+
+    // --- Service worker registration (needed for installability) ---
+    // Put sw.js in the SAME folder as this index.html
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", async () => {
+        try {
+          const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+          // Optional: show a tiny indicator
+          // console.log("SW registered:", reg.scope);
+        } catch (err) {
+          console.warn("SW registration failed:", err);
+        }
+      });
+    }
+
+    // Tiny debug info to help you confirm you're in standalone mode
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+
+    pwaInfo.innerHTML = isStandalone
+      ? "✅ Running as an installed app (standalone)."
+      : "ℹ️ Not installed yet. In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>If you don’t see it, check <code>manifest.json</code> + <code>sw.js</code> are loading with 200 OK.";
   </script>
 </body>
 </html>
