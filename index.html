@@ -257,11 +257,16 @@ Notes: felt good"
     // --- Logging to Google Sheets (Apps Script) ---
   // Configure these placeholders with your Apps Script web app URL and secret token.
   const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwHk6otl1AmaEIBzZnPvfQX9055EOY2t3AnrqFFNpK93axNDtnF6r5AmkjO6XO505M2ew/exec';
-  const SHEETS_SECRET_TOKEN = 'nyPiRmzCLTNvpuJhOZxKYFqncHgROLvW';
+  // Removed secret from repo. If your Apps Script now accepts anonymous posts,
+  // leave this empty. To use a secret again, set it locally in your browser
+  // (e.g. via localStorage) instead of committing it here.
+  const SHEETS_SECRET_TOKEN = '';
 
     async function logActionToSheet(action, details = '') {
       if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
-      const payload = { _token: SHEETS_SECRET_TOKEN, action, details };
+  const payload = { action, details };
+  // Include token only when explicitly set (we removed the secret from the repo)
+  if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;
       try {
         const res = await fetch(SHEETS_WEB_APP_URL, {
           method: 'POST',
