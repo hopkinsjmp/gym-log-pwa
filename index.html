@@ -332,6 +332,11 @@ Notes: felt good"
       return d.sessions[d.sessions.length - 1];
     }
 
+    // generate a compact client-side id for sets/exercises to help server-side dedupe and lookup
+    function generateId() {
+      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+    }
+
     async function newSession() {
       // Sessions are optional; keep behavior for backward compatibility
       const d = loadStructuredData() || { version: 2, sessions: [] };
@@ -447,20 +452,26 @@ Notes: felt good"
 
         // Add sets with slightly different timestamps to the global sets store
         const sets = loadSets();
+        const createdSets = [];
         for (let i = 0; i < setsCount; i++) {
           const ts = new Date(Date.now() + i * 1000).toISOString();
+          const sid = generateId();
           let setObj;
           if (mode === 'cardio') {
-            setObj = { id: Date.now() + i, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
+            setObj = { id: sid, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
           } else {
-            setObj = { id: Date.now() + i, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
+            setObj = { id: sid, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
           }
           sets.push(setObj);
+          createdSets.push(setObj);
         }
         saveSets(sets);
         closeModal();
-          flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
-        try { await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: setsCount, type: mode })); } catch (e) {}
+        flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
+        try {
+          // send the full created sets payload so server/sheet can record client ids and full details
+          await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
+        } catch (e) {}
       }
 
       select.addEventListener('change', onSelectChange);
@@ -481,6 +492,7 @@ Notes: felt good"
         rows.push({
           exerciseId: set.exerciseId,
           exercise: ex.name,
+          setId: set.id,
           setIndex: null,
           setTs: set.ts,
           reps: set.reps,
