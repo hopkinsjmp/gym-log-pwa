@@ -580,19 +580,26 @@ Notes: felt good"
         // ignore localStorage errors (e.g., privacy mode)
       }
       try {
+        // Send as plain text (no custom Content-Type) to avoid triggering CORS preflight.
+        // Apps Script doPost can read the raw body from e.postData.contents and JSON.parse it.
         const res = await fetch(SHEETS_WEB_APP_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          mode: 'cors'
+          // don't set headers here to keep request simple (text/plain) and avoid preflight
         });
         if (!res.ok) {
-          const txt = await res.text();
+          // non-2xx (may also be blocked by CORS and thrown as an exception)
+          const txt = await res.text().catch(() => '<no body>');
           console.warn('Log failed', res.status, txt);
           return { ok: false, status: res.status, text: txt };
         }
-        const json = await res.json();
-        return json;
+        // Some deployments (if CORS is misconfigured) may not allow reading the response; handle safely
+        try {
+          const json = await res.json();
+          return json;
+        } catch (e) {
+          return { ok: true };
+        }
       } catch (err) {
         console.warn('Log error', err);
         return { ok: false, error: String(err) };
