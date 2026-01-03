@@ -853,17 +853,38 @@ Notes: felt good"
         if (!q || q.length === 0) return updateSyncStatus();
         updateSyncStatus();
         const remaining = [];
+        const sentFingerprints = [];
         for (const item of q) {
           try {
             const res = await logActionToSheet(item.action, item.details);
-            if (!(res && res.ok)) {
+            if (res && res.ok) {
+              // mark this fingerprint as successfully sent
+              sentFingerprints.push(item.fingerprint);
+            } else {
               remaining.push(item);
             }
           } catch (e) {
             remaining.push(item);
           }
         }
-        localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));
+        // To avoid races where the stored queue changed while we were sending,
+        // read the latest queue and filter out any items we know were sent.
+        try {
+          let current = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+          if (sentFingerprints.length > 0 && Array.isArray(current) && current.length > 0) {
+            current = current.filter((it) => !sentFingerprints.includes(it.fingerprint));
+            // merge any items that failed during this run (remaining) ensuring order is preserved
+            // but avoid duplicating items already present
+            const remainingFingerprints = new Set((remaining || []).map(r => r.fingerprint));
+            const merged = current.concat(remaining.filter(r => !current.some(c => c.fingerprint === r.fingerprint)));
+            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(merged));
+          } else {
+            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));
+          }
+        } catch (e) {
+          // fallback to the conservative write
+          localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));
+        }
         updateSyncStatus();
         return { ok: true, remaining: remaining.length };
       } catch (e) {
@@ -909,10 +930,14 @@ Notes: felt good"
             try {
               const res = await logActionToSheet(item.action, item.details);
               if (res && res.ok) {
-                // remove item
-                const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
-                q2.splice(idx, 1);
-                localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q2));
+                // remove any queued items matching this fingerprint (safer than splice-by-index)
+                try {
+                  const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+                  const filtered = q2.filter((it) => it.fingerprint !== item.fingerprint);
+                  localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(filtered));
+                } catch (e) {
+                  // ignore
+                }
                 renderQueue();
                 updateSyncStatus();
                 flashStatus('Retried and removed ✔️');
@@ -930,9 +955,13 @@ Notes: felt good"
           delBtn.textContent = 'Remove';
           delBtn.className = 'secondary';
           delBtn.addEventListener('click', () => {
-            const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
-            q2.splice(idx, 1);
-            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q2));
+            try {
+              const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+              const filtered = q2.filter((it) => it.fingerprint !== item.fingerprint);
+              localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(filtered));
+            } catch (e) {
+              // ignore
+            }
             renderQueue();
             updateSyncStatus();
             flashStatus('Removed from queue');
