@@ -104,6 +104,99 @@
     .mono {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
+
+    /* iOS-style picker wheel */
+    .picker-container {
+      display: flex;
+      gap: 12px;
+      margin: 12px 0;
+      align-items: center;
+    }
+
+    .picker-wheel {
+      position: relative;
+      height: 180px;
+      overflow: hidden;
+      flex: 1;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .picker-wheel::before,
+    .picker-wheel::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 60px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .picker-wheel::before {
+      top: 0;
+      background: linear-gradient(to bottom, rgba(11,18,32,0.95), transparent);
+    }
+
+    .picker-wheel::after {
+      bottom: 0;
+      background: linear-gradient(to top, rgba(11,18,32,0.95), transparent);
+    }
+
+    .picker-selection {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 44px;
+      border-top: 1px solid rgba(124, 58, 237, 0.5);
+      border-bottom: 1px solid rgba(124, 58, 237, 0.5);
+      background: rgba(124, 58, 237, 0.08);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .picker-scroll {
+      position: relative;
+      padding: 68px 0;
+      transition: transform 0.2s ease-out;
+    }
+
+    .picker-item {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      opacity: 0.4;
+      transition: opacity 0.2s;
+    }
+
+    .picker-item.selected {
+      opacity: 1;
+      font-weight: 600;
+    }
+
+    .set-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .set-row .set-number {
+      width: 30px;
+      font-weight: 600;
+      opacity: 0.7;
+    }
   </style>
 </head>
 
@@ -136,8 +229,8 @@
   <div class="tiny" id="pwaInfo"></div>
 
   <!-- Add-Set modal -->
-  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999;">
-    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb;">
+  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999; overflow-y:auto; padding:20px 0;">
+    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb; margin:auto;">
       <h3 style="margin:0 0 8px; font-size:1.1rem;">Add Set(s)</h3>
       <div style="display:flex; gap:8px; flex-direction:column;">
         <label class="mono" style="font-size:0.9rem; opacity:0.9">Exercise</label>
@@ -146,25 +239,28 @@
         </select>
         <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06); display:none;" />
 
-        <div style="display:flex; gap:8px;">
-          <div style="flex:1">
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Sets</label>
-            <input id="modalSets" type="number" min="1" value="3" style="width:100%; padding:8px; border-radius:8px;" />
-          </div>
-          <div style="flex:1">
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Reps</label>
-            <input id="modalReps" type="number" min="0" value="8" style="width:100%; padding:8px; border-radius:8px;" />
-          </div>
+        <!-- Number of sets selector -->
+        <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+          <label class="mono" style="font-size:0.9rem; opacity:0.9">Number of sets:</label>
+          <button id="decreaseSets" class="secondary" style="padding:6px 12px; font-size:18px;">−</button>
+          <span id="setsCount" style="font-size:18px; font-weight:600; min-width:30px; text-align:center;">3</span>
+          <button id="increaseSets" class="secondary" style="padding:6px 12px; font-size:18px;">+</button>
         </div>
 
-        <div style="display:flex; gap:8px;">
+        <!-- Individual sets container -->
+        <div id="setsContainer" style="max-height:400px; overflow-y:auto; margin-top:8px;">
+          <!-- Sets will be dynamically added here -->
+        </div>
+
+        <!-- Global weight setting (optional) -->
+        <div style="display:flex; gap:8px; margin-top:8px;">
           <div style="flex:1">
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight</label>
-            <input id="modalWeight" type="number" step="0.5" style="width:100%; padding:8px; border-radius:8px;" />
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight (all sets)</label>
+            <input id="modalWeight" type="number" step="0.5" placeholder="Optional" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);" />
           </div>
           <div style="width:110px">
             <label class="mono" style="font-size:0.9rem; opacity:0.9">Unit</label>
-            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px;">
+            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);">
               <option value="kg">kg</option>
               <option value="lb">lb</option>
               <option value="">(none)</option>
@@ -177,7 +273,7 @@
           <div style="display:flex; gap:8px;">
             <div style="flex:1">
               <label class="mono" style="font-size:0.9rem; opacity:0.9">Duration (s)</label>
-              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px;" />
+              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);" />
             </div>
             <div style="width:120px">
               <label class="mono" style="font-size:0.9rem; opacity:0.9">Distance (km)</label>
@@ -307,18 +403,164 @@
     }
 
     async function addSet(mode = 'strength') {
-      // Open modal UI for adding sets (prefill exercises)
+      // Open modal UI for adding sets with iOS-style pickers
 
       const select = document.getElementById('modalExerciseSelect');
       const newInput = document.getElementById('modalExerciseNew');
-        const setsInput = document.getElementById('modalSets');
-      const repsInput = document.getElementById('modalReps');
+      const setsCountDisplay = document.getElementById('setsCount');
+      const setsContainer = document.getElementById('setsContainer');
+      const decreaseBtn = document.getElementById('decreaseSets');
+      const increaseBtn = document.getElementById('increaseSets');
       const weightInput = document.getElementById('modalWeight');
       const unitSelect = document.getElementById('modalUnit');
       const cardioFields = document.getElementById('modalCardioFields');
       const durationInput = document.getElementById('modalDuration');
       const distanceInput = document.getElementById('modalDistance');
       const modal = document.getElementById('addSetModal');
+
+      let numberOfSets = 3;
+      const setData = []; // Will store {reps: number} for each set
+
+      // Create iOS-style picker wheel
+      function createPicker(min, max, defaultValue, label) {
+        const container = document.createElement('div');
+        container.style.flex = '1';
+        
+        const labelEl = document.createElement('div');
+        labelEl.textContent = label;
+        labelEl.className = 'mono';
+        labelEl.style.cssText = 'font-size:0.85rem; opacity:0.7; margin-bottom:4px; text-align:center;';
+        container.appendChild(labelEl);
+
+        const wheel = document.createElement('div');
+        wheel.className = 'picker-wheel';
+        
+        const selection = document.createElement('div');
+        selection.className = 'picker-selection';
+        wheel.appendChild(selection);
+
+        const scroll = document.createElement('div');
+        scroll.className = 'picker-scroll';
+        
+        const items = [];
+        for (let i = min; i <= max; i++) {
+          const item = document.createElement('div');
+          item.className = 'picker-item';
+          item.textContent = i;
+          item.dataset.value = i;
+          scroll.appendChild(item);
+          items.push(item);
+        }
+        
+        wheel.appendChild(scroll);
+        container.appendChild(wheel);
+
+        let currentValue = defaultValue;
+        let selectedIndex = items.findIndex(item => Number(item.dataset.value) === defaultValue);
+        
+        function updatePosition() {
+          const offset = selectedIndex * -44;
+          scroll.style.transform = `translateY(${offset}px)`;
+          items.forEach((item, idx) => {
+            item.classList.toggle('selected', idx === selectedIndex);
+          });
+        }
+        
+        updatePosition();
+
+        let touchStartY = 0;
+        let scrollStartY = 0;
+        let isDragging = false;
+
+        function onStart(y) {
+          isDragging = true;
+          touchStartY = y;
+          scrollStartY = selectedIndex * 44;
+          scroll.style.transition = 'none';
+        }
+
+        function onMove(y) {
+          if (!isDragging) return;
+          const deltaY = touchStartY - y;
+          const newScrollY = scrollStartY + deltaY;
+          const newIndex = Math.round(newScrollY / 44);
+          const clampedIndex = Math.max(0, Math.min(items.length - 1, newIndex));
+          selectedIndex = clampedIndex;
+          scroll.style.transform = `translateY(${-clampedIndex * 44}px)`;
+          items.forEach((item, idx) => {
+            item.classList.toggle('selected', idx === clampedIndex);
+          });
+        }
+
+        function onEnd() {
+          if (!isDragging) return;
+          isDragging = false;
+          scroll.style.transition = 'transform 0.2s ease-out';
+          updatePosition();
+          currentValue = Number(items[selectedIndex].dataset.value);
+        }
+
+        wheel.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          onStart(e.clientY);
+        });
+        
+        wheel.addEventListener('mousemove', (e) => {
+          e.preventDefault();
+          onMove(e.clientY);
+        });
+        
+        wheel.addEventListener('mouseup', () => onEnd());
+        wheel.addEventListener('mouseleave', () => onEnd());
+
+        wheel.addEventListener('touchstart', (e) => {
+          onStart(e.touches[0].clientY);
+        });
+        
+        wheel.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          onMove(e.touches[0].clientY);
+        });
+        
+        wheel.addEventListener('touchend', () => onEnd());
+
+        return {
+          element: container,
+          getValue: () => currentValue
+        };
+      }
+
+      // Render individual sets with pickers
+      function renderSets() {
+        setsContainer.innerHTML = '';
+        setData.length = numberOfSets;
+        
+        for (let i = 0; i < numberOfSets; i++) {
+          if (!setData[i]) setData[i] = { reps: 8 };
+          
+          const setRow = document.createElement('div');
+          setRow.className = 'set-row';
+          
+          const setNumber = document.createElement('div');
+          setNumber.className = 'set-number';
+          setNumber.textContent = `${i + 1}.`;
+          setRow.appendChild(setNumber);
+          
+          const pickerContainer = document.createElement('div');
+          pickerContainer.className = 'picker-container';
+          
+          const repsPicker = createPicker(0, 50, setData[i].reps, 'Reps');
+          pickerContainer.appendChild(repsPicker.element);
+          
+          setRow.appendChild(pickerContainer);
+          setsContainer.appendChild(setRow);
+          
+          // Store reference to picker
+          setData[i].getPicker = () => repsPicker;
+        }
+        
+        setsCountDisplay.textContent = numberOfSets;
+      }
 
       // populate exercise list from global exercises store
       updateExerciseSelect();
@@ -331,32 +573,47 @@
         newInput.style.display = '';
       }
 
-  // preset values (strength defaults)
-  setsInput.value = 3;
-  repsInput.value = 8;
-  weightInput.value = '';
-  unitSelect.value = 'kg';
-  durationInput.value = '';
-  distanceInput.value = '';
+      // preset values
+      weightInput.value = '';
+      unitSelect.value = 'kg';
+      durationInput.value = '';
+      distanceInput.value = '';
 
-  // show modal
-  const header = modal.querySelector('h3');
-  header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set(s)';
-  modal.style.display = 'flex';
+      // show modal
+      const header = modal.querySelector('h3');
+      header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set(s)';
+      modal.style.display = 'flex';
+      
       // adjust fields based on mode
       if (mode === 'cardio') {
-        // show cardio inputs, hide strength inputs
-        repsInput.parentElement.style.display = 'none';
+        decreaseBtn.parentElement.style.display = 'none';
+        setsContainer.parentElement.style.display = 'none';
         weightInput.parentElement.parentElement.style.display = 'none';
         cardioFields.style.display = '';
-        setsInput.value = 1; // usually single entry for cardio
+        numberOfSets = 1;
       } else {
-        repsInput.parentElement.style.display = '';
+        decreaseBtn.parentElement.style.display = '';
+        setsContainer.parentElement.style.display = '';
         weightInput.parentElement.parentElement.style.display = '';
         cardioFields.style.display = 'none';
+        renderSets();
       }
 
       // handlers
+      function onDecreaseSet() {
+        if (numberOfSets > 1) {
+          numberOfSets--;
+          renderSets();
+        }
+      }
+
+      function onIncreaseSet() {
+        if (numberOfSets < 10) {
+          numberOfSets++;
+          renderSets();
+        }
+      }
+
       function onSelectChange() {
         if (select.value === '__new__') newInput.style.display = '';
         else newInput.style.display = 'none';
@@ -365,6 +622,8 @@
       function closeModal() {
         modal.style.display = 'none';
         select.removeEventListener('change', onSelectChange);
+        decreaseBtn.removeEventListener('click', onDecreaseSet);
+        increaseBtn.removeEventListener('click', onIncreaseSet);
         cancelBtn.removeEventListener('click', onCancel);
         addBtn.removeEventListener('click', onAdd);
       }
@@ -375,11 +634,10 @@
       }
 
       async function onAdd() {
-        const setsCount = Math.max(1, Number(setsInput.value) || 1);
-        const repsVal = repsInput.value === '' ? null : Number(repsInput.value);
         const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');
         const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
         const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
+        
         let exObj = null;
         if (select.value === '__new__') {
           const name = newInput.value && newInput.value.trim();
@@ -397,31 +655,39 @@
           }
         }
 
-        // Add sets with slightly different timestamps to the global sets store
+        // Add sets with individual rep values
         const sets = loadSets();
         const createdSets = [];
-        for (let i = 0; i < setsCount; i++) {
+        
+        for (let i = 0; i < numberOfSets; i++) {
           const ts = new Date(Date.now() + i * 1000).toISOString();
           const sid = generateId();
           let setObj;
+          
           if (mode === 'cardio') {
             setObj = { id: sid, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
           } else {
+            const repsVal = setData[i].getPicker().getValue();
             setObj = { id: sid, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
           }
+          
           sets.push(setObj);
           createdSets.push(setObj);
         }
+        
         saveSets(sets);
         closeModal();
-        flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
+        flashStatus(`${numberOfSets} set(s) added to ${exObj.name}`);
+        
         try {
-          // send the full created sets payload so server/sheet can record client ids and full details
           await enqueueAction('log_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
         } catch (e) {}
       }
 
       select.addEventListener('change', onSelectChange);
+      decreaseBtn.addEventListener('click', onDecreaseSet);
+      increaseBtn.addEventListener('click', onIncreaseSet);
+      
       const cancelBtn = document.getElementById('modalCancel');
       const addBtn = document.getElementById('modalAdd');
       cancelBtn.addEventListener('click', onCancel);
