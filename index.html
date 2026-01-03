@@ -136,12 +136,9 @@ Notes: felt good"
   </div>
 
   <div class="row">
-    <button id="setSheetToken" class="secondary" type="button">Set Sheet Token</button>
-    <button id="testLog" class="secondary" type="button">Test Log</button>
-    <button id="newSession" class="secondary" type="button">New Session</button>
+    <button id="logSet" class="secondary" type="button">Log Set</button>
+    <button id="logRun" class="secondary" type="button">Log Run</button>
     <button id="addExercise" class="secondary" type="button">Add Exercise</button>
-    <button id="addSet" class="secondary" type="button">Add Set</button>
-    <button id="exportRows" class="secondary" type="button">Export rows to Sheet</button>
   </div>
 
   <div class="tiny" id="pwaInfo"></div>
@@ -180,6 +177,20 @@ Notes: felt good"
               <option value="lb">lb</option>
               <option value="">(none)</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Cardio fields (hidden for strength mode) -->
+        <div id="modalCardioFields" style="display:none;">
+          <div style="display:flex; gap:8px;">
+            <div style="flex:1">
+              <label class="mono" style="font-size:0.9rem; opacity:0.9">Duration (s)</label>
+              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px;" />
+            </div>
+            <div style="width:120px">
+              <label class="mono" style="font-size:0.9rem; opacity:0.9">Distance (km)</label>
+              <input id="modalDistance" type="number" step="0.01" placeholder="km" style="width:100%; padding:8px; border-radius:8px;" />
+            </div>
           </div>
         </div>
 
@@ -232,13 +243,10 @@ Notes: felt good"
       }, 300);
     });
 
-    // --- Structured data helpers (exercises + sets store) ---
-    const setSheetTokenBtn = document.getElementById('setSheetToken');
-    const testLogBtn = document.getElementById('testLog');
-    const newSessionBtn = document.getElementById('newSession');
-    const addExerciseBtn = document.getElementById('addExercise');
-    const addSetBtn = document.getElementById('addSet');
-    const exportRowsBtn = document.getElementById('exportRows');
+  // --- Structured data helpers (exercises + sets store) ---
+  const logSetBtn = document.getElementById('logSet');
+  const logRunBtn = document.getElementById('logRun');
+  const addExerciseBtn = document.getElementById('addExercise');
 
     const EXERCISES_KEY = 'gym-exercises';
     const SETS_KEY = 'gym-sets';
@@ -333,23 +341,18 @@ Notes: felt good"
       try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) {}
     }
 
-    async function addSet() {
+    async function addSet(mode = 'strength') {
       // Open modal UI for adding sets (prefill exercises)
-      const d = loadStructuredData();
-      let session = getCurrentSession(d);
-      if (!session) {
-        // create a session silently
-        session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
-        d.sessions.push(session);
-        saveStructuredData(d);
-      }
 
       const select = document.getElementById('modalExerciseSelect');
       const newInput = document.getElementById('modalExerciseNew');
-      const setsInput = document.getElementById('modalSets');
+        const setsInput = document.getElementById('modalSets');
       const repsInput = document.getElementById('modalReps');
       const weightInput = document.getElementById('modalWeight');
       const unitSelect = document.getElementById('modalUnit');
+      const cardioFields = document.getElementById('modalCardioFields');
+      const durationInput = document.getElementById('modalDuration');
+      const distanceInput = document.getElementById('modalDistance');
       const modal = document.getElementById('addSetModal');
 
       // populate exercise list from global exercises store
@@ -363,14 +366,30 @@ Notes: felt good"
         newInput.style.display = '';
       }
 
-      // preset values
-      setsInput.value = 3;
-      repsInput.value = 8;
-      weightInput.value = '';
-      unitSelect.value = 'kg';
+  // preset values (strength defaults)
+  setsInput.value = 3;
+  repsInput.value = 8;
+  weightInput.value = '';
+  unitSelect.value = 'kg';
+  durationInput.value = '';
+  distanceInput.value = '';
 
-      // show modal
-      modal.style.display = 'flex';
+  // show modal
+  const header = modal.querySelector('h3');
+  header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set(s)';
+  modal.style.display = 'flex';
+      // adjust fields based on mode
+      if (mode === 'cardio') {
+        // show cardio inputs, hide strength inputs
+        repsInput.parentElement.style.display = 'none';
+        weightInput.parentElement.parentElement.style.display = 'none';
+        cardioFields.style.display = '';
+        setsInput.value = 1; // usually single entry for cardio
+      } else {
+        repsInput.parentElement.style.display = '';
+        weightInput.parentElement.parentElement.style.display = '';
+        cardioFields.style.display = 'none';
+      }
 
       // handlers
       function onSelectChange() {
@@ -394,14 +413,19 @@ Notes: felt good"
         const setsCount = Math.max(1, Number(setsInput.value) || 1);
         const repsVal = repsInput.value === '' ? null : Number(repsInput.value);
         const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');
+        const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
+        const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
         let exObj = null;
         if (select.value === '__new__') {
           const name = newInput.value && newInput.value.trim();
           if (!name) return flashStatus('Enter exercise name', 1500);
-          exObj = { id: Date.now(), name: name, sets: [], notes: '' };
-          session.exercises.push(exObj);
+          exObj = { id: Date.now(), name: name, notes: '' };
+          const exercises = loadExercises();
+          exercises.push(exObj);
+          saveExercises(exercises);
         } else {
-          exObj = session.exercises.find(e => String(e.id) === String(select.value));
+          const exercises = loadExercises();
+          exObj = exercises.find(e => String(e.id) === String(select.value));
           if (!exObj) {
             flashStatus('Exercise not found', 1500);
             return;
@@ -412,13 +436,18 @@ Notes: felt good"
         const sets = loadSets();
         for (let i = 0; i < setsCount; i++) {
           const ts = new Date(Date.now() + i * 1000).toISOString();
-          const setObj = { id: Date.now() + i, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
+          let setObj;
+          if (mode === 'cardio') {
+            setObj = { id: Date.now() + i, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
+          } else {
+            setObj = { id: Date.now() + i, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
+          }
           sets.push(setObj);
         }
         saveSets(sets);
         closeModal();
           flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
-          try { await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: setsCount })); } catch (e) {}
+        try { await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: setsCount, type: mode })); } catch (e) {}
       }
 
       select.addEventListener('change', onSelectChange);
@@ -464,46 +493,164 @@ Notes: felt good"
       }
     }
 
-    // --- small UI bindings for token & test log ---
-    setSheetTokenBtn.addEventListener('click', () => {
-      try {
-        const existing = localStorage.getItem('gym-log-sheet-token') || '';
-        const val = prompt('Enter sheet secret token (leave empty to clear)', existing);
-        if (val === null) return; // cancelled
-        if (!val) {
-          localStorage.removeItem('gym-log-sheet-token');
-          flashStatus('Sheet token cleared (not used)');
-          return;
-        }
-        localStorage.setItem('gym-log-sheet-token', val);
-        flashStatus('Sheet token saved locally ✔️', 2000);
-      } catch (e) {
-        flashStatus('Could not save token (storage error)');
-      }
-    });
+  // --- small UI bindings for main actions ---
+  // Wire the three primary buttons: Log Set, Log Run, Add Exercise
+  logSetBtn.addEventListener('click', () => addSet('strength'));
+  logRunBtn.addEventListener('click', () => addSet('cardio'));
+  addExerciseBtn.addEventListener('click', () => addExercise());
 
-    testLogBtn.addEventListener('click', async () => {
-      testLogBtn.disabled = true;
-      flashStatus('Sending test log…');
-      try {
-        const res = await logActionToSheet('test', JSON.stringify({ ts: new Date().toISOString(), url: window.location.href }));
-        console.log('Test log response', res);
-        if (res && res.ok) {
-          flashStatus('Test log sent ✔️', 2000);
-        } else {
-          flashStatus('Test failed (see console)', 4000);
-        }
-      } catch (e) {
-        console.error(e);
-        flashStatus('Test failed', 3000);
-      }
-      testLogBtn.disabled = false;
-    });
-
-    newSessionBtn.addEventListener('click', () => newSession());
-    addExerciseBtn.addEventListener('click', () => addExercise());
-    addSetBtn.addEventListener('click', () => addSet());
-    exportRowsBtn.addEventListener('click', () => exportRowsToSheet());
+  // legacy token/test debug handlers removed from main UI
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  // --- previous token/test handlers (no visible buttons now) ---
+  // kept in case you want to re-enable them later
+  // setSheetTokenBtn.addEventListener('click', () => { ... })
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  // ---
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
     clearBtn.addEventListener("click", () => {
       textarea.value = "";
