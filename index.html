@@ -627,12 +627,23 @@ Notes: felt good"
     }
 
     async function enqueueAction(action, details = '') {
-      const item = { action, details, ts: new Date().toISOString() };
+      const fingerprint = JSON.stringify({ action, details });
+      const item = { action, details, ts: new Date().toISOString(), fingerprint };
       // Try to send immediately when online
       if (navigator.onLine) {
         try {
           const res = await logActionToSheet(action, details);
           if (res && res.ok) {
+            // Remove any previously queued items that match this action/details to avoid duplicates
+            try {
+              const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+              const filtered = q.filter((it) => it.fingerprint !== fingerprint);
+              if (filtered.length !== q.length) {
+                localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(filtered));
+              }
+            } catch (e) {
+              // ignore
+            }
             updateSyncStatus();
             return { ok: true, sent: true, res };
           }
@@ -643,6 +654,9 @@ Notes: felt good"
       // queue locally
       try {
         const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+        // avoid exact-duplicate queue entries (same fingerprint)
+        const exists = q.some((it) => it.fingerprint === fingerprint);
+        if (!exists) q.push(item);
         q.push(item);
         localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q));
         updateSyncStatus();
