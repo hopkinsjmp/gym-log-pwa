@@ -134,6 +134,15 @@ Notes: felt good"
     <input id="fileInput" type="file" accept="text/plain" style="display:none" />
   </div>
 
+  <div class="row">
+    <button id="setSheetToken" class="secondary" type="button">Set Sheet Token</button>
+    <button id="testLog" class="secondary" type="button">Test Log</button>
+    <button id="newSession" class="secondary" type="button">New Session</button>
+    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
+    <button id="addSet" class="secondary" type="button">Add Set</button>
+    <button id="exportRows" class="secondary" type="button">Export rows to Sheet</button>
+  </div>
+
   <div class="tiny" id="pwaInfo"></div>
 
   <script>
@@ -178,6 +187,184 @@ Notes: felt good"
         flashStatus("Auto-saved…", 800);
       }, 300);
     });
+
+    // --- Structured data helpers (simple v2 schema) ---
+    const setSheetTokenBtn = document.getElementById('setSheetToken');
+    const testLogBtn = document.getElementById('testLog');
+    const newSessionBtn = document.getElementById('newSession');
+    const addExerciseBtn = document.getElementById('addExercise');
+    const addSetBtn = document.getElementById('addSet');
+    const exportRowsBtn = document.getElementById('exportRows');
+
+    function loadStructuredData() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        const init = { version: 2, sessions: [] };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(init));
+        return init;
+      }
+      try {
+        const obj = JSON.parse(raw);
+        // If it's already the structured schema, return it
+        if (obj && (obj.version === 2 || Array.isArray(obj.sessions))) return obj;
+        // Otherwise fall through to migrate
+      } catch (e) {
+        // not JSON — we'll migrate below
+      }
+      // Migration: wrap legacy free-text into one session
+      const migrated = {
+        version: 2,
+        sessions: [
+          {
+            id: Date.now(),
+            date: new Date().toISOString(),
+            notes: raw || '',
+            exercises: []
+          }
+        ]
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+
+    function saveStructuredData(obj) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+      flashStatus('Saved ✔️');
+    }
+
+    function getCurrentSession(data) {
+      const d = data || loadStructuredData();
+      if (!d.sessions || d.sessions.length === 0) return null;
+      return d.sessions[d.sessions.length - 1];
+    }
+
+    async function newSession() {
+      const d = loadStructuredData();
+      const session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
+      d.sessions.push(session);
+      saveStructuredData(d);
+      flashStatus('New session created');
+      try { await logActionToSheet('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
+    }
+
+    async function addExercise() {
+      const name = prompt('Exercise name (e.g. Bench Press)');
+      if (!name) return flashStatus('Cancelled', 1200);
+      const d = loadStructuredData();
+      let session = getCurrentSession(d);
+      if (!session) {
+        session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
+        d.sessions.push(session);
+      }
+      const ex = { id: Date.now(), name: name.trim(), sets: [], notes: '' };
+      session.exercises.push(ex);
+      saveStructuredData(d);
+      flashStatus('Exercise added');
+      try { await logActionToSheet('add_exercise', JSON.stringify({ sessionId: session.id, exercise: ex.name })); } catch (e) {}
+    }
+
+    async function addSet() {
+      const d = loadStructuredData();
+      let session = getCurrentSession(d);
+      if (!session) {
+        flashStatus('No session found — creating one', 1500);
+        await newSession();
+        session = getCurrentSession();
+      }
+      // pick the last exercise by default
+      let exercise = session.exercises && session.exercises.length ? session.exercises[session.exercises.length - 1] : null;
+      if (!exercise) {
+        const ename = prompt('No exercise found — enter exercise name');
+        if (!ename) return flashStatus('Cancelled', 1200);
+        exercise = { id: Date.now(), name: ename.trim(), sets: [], notes: '' };
+        session.exercises.push(exercise);
+      }
+      const reps = prompt('Reps (number)', '8');
+      if (reps === null) return flashStatus('Cancelled', 1200);
+      const weight = prompt('Weight (units optional, e.g. 60kg)', '');
+      if (weight === null) return flashStatus('Cancelled', 1200);
+      const setObj = { ts: new Date().toISOString(), reps: reps ? Number(reps) : null, weight: weight || '' };
+      exercise.sets.push(setObj);
+      saveStructuredData(d);
+      flashStatus('Set added');
+      try { await logActionToSheet('add_set', JSON.stringify({ sessionId: session.id, exercise: exercise.name, set: setObj })); } catch (e) {}
+    }
+
+    async function exportRowsToSheet() {
+      const d = loadStructuredData();
+      const rows = [];
+      for (const s of d.sessions) {
+        if (!s.exercises || s.exercises.length === 0) {
+          rows.push({ sessionId: s.id, sessionDate: s.date, exercise: '', setIndex: null, reps: null, weight: '', notes: s.notes || '' });
+          continue;
+        }
+        for (const ex of s.exercises) {
+          if (!ex.sets || ex.sets.length === 0) {
+            rows.push({ sessionId: s.id, sessionDate: s.date, exercise: ex.name, setIndex: null, reps: null, weight: '', notes: ex.notes || '' });
+            continue;
+          }
+          for (let i = 0; i < ex.sets.length; i++) {
+            const set = ex.sets[i];
+            rows.push({ sessionId: s.id, sessionDate: s.date, exercise: ex.name, setIndex: i + 1, reps: set.reps, weight: set.weight, notes: ex.notes || '' });
+          }
+        }
+      }
+      if (rows.length === 0) return flashStatus('No structured rows to export', 2000);
+      flashStatus('Exporting rows…', 5000);
+      try {
+        const res = await logActionToSheet('export_rows', JSON.stringify({ rows }));
+        if (res && res.ok) {
+          flashStatus('Exported rows to Sheet ✔️', 2500);
+        } else {
+          console.warn('Export rows response', res);
+          flashStatus('Export failed (see console)', 4000);
+        }
+      } catch (e) {
+        console.warn(e);
+        flashStatus('Export failed', 3000);
+      }
+    }
+
+    // --- small UI bindings for token & test log ---
+    setSheetTokenBtn.addEventListener('click', () => {
+      try {
+        const existing = localStorage.getItem('gym-log-sheet-token') || '';
+        const val = prompt('Enter sheet secret token (leave empty to clear)', existing);
+        if (val === null) return; // cancelled
+        if (!val) {
+          localStorage.removeItem('gym-log-sheet-token');
+          flashStatus('Sheet token cleared (not used)');
+          return;
+        }
+        localStorage.setItem('gym-log-sheet-token', val);
+        flashStatus('Sheet token saved locally ✔️', 2000);
+      } catch (e) {
+        flashStatus('Could not save token (storage error)');
+      }
+    });
+
+    testLogBtn.addEventListener('click', async () => {
+      testLogBtn.disabled = true;
+      flashStatus('Sending test log…');
+      try {
+        const res = await logActionToSheet('test', JSON.stringify({ ts: new Date().toISOString(), url: window.location.href }));
+        console.log('Test log response', res);
+        if (res && res.ok) {
+          flashStatus('Test log sent ✔️', 2000);
+        } else {
+          flashStatus('Test failed (see console)', 4000);
+        }
+      } catch (e) {
+        console.error(e);
+        flashStatus('Test failed', 3000);
+      }
+      testLogBtn.disabled = false;
+    });
+
+    newSessionBtn.addEventListener('click', () => newSession());
+    addExerciseBtn.addEventListener('click', () => addExercise());
+    addSetBtn.addEventListener('click', () => addSet());
+    exportRowsBtn.addEventListener('click', () => exportRowsToSheet());
 
     clearBtn.addEventListener("click", () => {
       textarea.value = "";
@@ -261,12 +448,19 @@ Notes: felt good"
   // leave this empty. To use a secret again, set it locally in your browser
   // (e.g. via localStorage) instead of committing it here.
   const SHEETS_SECRET_TOKEN = '';
+  const SHEETS_LOCAL_TOKEN_KEY = 'gym-log-sheet-token';
 
     async function logActionToSheet(action, details = '') {
       if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
-  const payload = { action, details };
-  // Include token only when explicitly set (we removed the secret from the repo)
-  if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;
+      const payload = { action, details };
+      // Include token only when explicitly set in constant or locally in browser storage
+      if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;
+      try {
+        const localToken = localStorage.getItem(SHEETS_LOCAL_TOKEN_KEY);
+        if (localToken) payload._token = localToken;
+      } catch (e) {
+        // ignore localStorage errors (e.g., privacy mode)
+      }
       try {
         const res = await fetch(SHEETS_WEB_APP_URL, {
           method: 'POST',
@@ -275,14 +469,15 @@ Notes: felt good"
           mode: 'cors'
         });
         if (!res.ok) {
-          console.warn('Log failed', await res.text());
-          return false;
+          const txt = await res.text();
+          console.warn('Log failed', res.status, txt);
+          return { ok: false, status: res.status, text: txt };
         }
         const json = await res.json();
-        return json && json.ok === true;
+        return json;
       } catch (err) {
         console.warn('Log error', err);
-        return false;
+        return { ok: false, error: String(err) };
       }
     }
 
