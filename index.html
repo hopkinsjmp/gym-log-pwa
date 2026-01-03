@@ -127,6 +127,19 @@ Notes: felt good"
   </div>
   <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
+  <!-- Debug: Pending actions / queue panel -->
+  <div id="queuePanel" style="margin-top:10px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+      <div style="font-weight:700">Pending actions</div>
+      <div style="display:flex; gap:8px;">
+        <button id="retryQueue" class="secondary" type="button">Retry all</button>
+        <button id="downloadQueue" class="secondary" type="button">Download</button>
+        <button id="clearQueue" class="secondary" type="button">Clear</button>
+      </div>
+    </div>
+    <div id="queueList" style="margin-top:8px; max-height:180px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size:13px;"></div>
+  </div>
+
   <div class="row">
     <button id="backupDrive" class="secondary" type="button">Backup to Drive</button>
     <button id="restoreDrive" class="secondary" type="button">Restore from Drive</button>
@@ -859,6 +872,113 @@ Notes: felt good"
         return { ok: false, error: String(e) };
       }
     }
+
+    // --- Queue viewer & management UI ---
+    const queueListEl = document.getElementById('queueList');
+    const retryQueueBtn = document.getElementById('retryQueue');
+    const clearQueueBtn = document.getElementById('clearQueue');
+    const downloadQueueBtn = document.getElementById('downloadQueue');
+
+    function renderQueue() {
+      try {
+        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+        if (!queueListEl) return;
+        queueListEl.innerHTML = '';
+        if (!q || q.length === 0) {
+          queueListEl.textContent = 'No pending actions';
+          return;
+        }
+        q.forEach((item, idx) => {
+          const el = document.createElement('div');
+          el.style.display = 'flex';
+          el.style.justifyContent = 'space-between';
+          el.style.alignItems = 'center';
+          el.style.padding = '6px 4px';
+          el.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+          const left = document.createElement('div');
+          left.style.flex = '1';
+          left.innerHTML = `<div><strong>${item.action}</strong> <span style="opacity:0.7">${new Date(item.ts).toLocaleString()}</span></div><div style="opacity:0.85">${String(item.details).slice(0,200)}</div>`;
+          const right = document.createElement('div');
+          right.style.display = 'flex';
+          right.style.gap = '6px';
+          const retryBtn = document.createElement('button');
+          retryBtn.textContent = 'Retry';
+          retryBtn.className = 'secondary';
+          retryBtn.addEventListener('click', async () => {
+            retryBtn.disabled = true;
+            try {
+              const res = await logActionToSheet(item.action, item.details);
+              if (res && res.ok) {
+                // remove item
+                const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+                q2.splice(idx, 1);
+                localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q2));
+                renderQueue();
+                updateSyncStatus();
+                flashStatus('Retried and removed ✔️');
+              } else {
+                flashStatus('Retry failed (see console)');
+                console.warn('Retry response', res);
+              }
+            } catch (e) {
+              console.warn('Retry error', e);
+              flashStatus('Retry failed');
+            }
+            retryBtn.disabled = false;
+          });
+          const delBtn = document.createElement('button');
+          delBtn.textContent = 'Remove';
+          delBtn.className = 'secondary';
+          delBtn.addEventListener('click', () => {
+            const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+            q2.splice(idx, 1);
+            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q2));
+            renderQueue();
+            updateSyncStatus();
+            flashStatus('Removed from queue');
+          });
+          right.appendChild(retryBtn);
+          right.appendChild(delBtn);
+          el.appendChild(left);
+          el.appendChild(right);
+          queueListEl.appendChild(el);
+        });
+      } catch (e) {
+        console.warn('Render queue error', e);
+      }
+    }
+
+    retryQueueBtn.addEventListener('click', async () => {
+      retryQueueBtn.disabled = true;
+      flashStatus('Retrying queue…', 2000);
+      await flushQueue();
+      renderQueue();
+      retryQueueBtn.disabled = false;
+    });
+
+    clearQueueBtn.addEventListener('click', () => {
+      localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify([]));
+      renderQueue();
+      updateSyncStatus();
+      flashStatus('Queue cleared');
+    });
+
+    downloadQueueBtn.addEventListener('click', () => {
+      const q = localStorage.getItem(ACTION_QUEUE_KEY) || '[]';
+      const blob = new Blob([q], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gym-log-queue-${new Date().toISOString()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      flashStatus('Queue downloaded');
+    });
+
+    // render initially
+    setTimeout(renderQueue, 800);
 
     // Attempt to flush when connection returns
     window.addEventListener('online', () => {
