@@ -109,13 +109,13 @@
     .picker-container {
       display: flex;
       gap: 0;
-      margin: 12px 0;
+      margin: 0;
       align-items: stretch;
       background: rgba(255,255,255,0.03);
-      border-radius: 10px;
+      border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.06);
       position: relative;
-      height: 200px;
+      height: 120px;
     }
 
     .picker-container::before,
@@ -124,21 +124,21 @@
       position: absolute;
       left: 0;
       right: 0;
-      height: 70px;
+      height: 40px;
       pointer-events: none;
       z-index: 2;
     }
 
     .picker-container::before {
       top: 0;
-      background: linear-gradient(to bottom, rgba(11,18,32,1) 0%, rgba(11,18,32,0.9) 40%, transparent 100%);
-      border-radius: 10px 10px 0 0;
+      background: linear-gradient(to bottom, rgba(11,18,32,1) 0%, rgba(11,18,32,0.85) 60%, transparent 100%);
+      border-radius: 8px 8px 0 0;
     }
 
     .picker-container::after {
       bottom: 0;
-      background: linear-gradient(to top, rgba(11,18,32,1) 0%, rgba(11,18,32,0.9) 40%, transparent 100%);
-      border-radius: 0 0 10px 10px;
+      background: linear-gradient(to top, rgba(11,18,32,1) 0%, rgba(11,18,32,0.85) 60%, transparent 100%);
+      border-radius: 0 0 8px 8px;
     }
 
     .picker-selection {
@@ -147,7 +147,7 @@
       right: 0;
       top: 50%;
       transform: translateY(-50%);
-      height: 40px;
+      height: 32px;
       border-top: 0.5px solid rgba(255,255,255,0.2);
       border-bottom: 0.5px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.02);
@@ -163,16 +163,16 @@
 
     .picker-scroll {
       position: relative;
-      padding: 80px 0;
+      padding: 44px 0;
       transition: transform 0.15s ease-out;
     }
 
     .picker-item {
-      height: 40px;
+      height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
+      font-size: 18px;
       font-weight: 400;
       cursor: pointer;
       user-select: none;
@@ -182,7 +182,7 @@
 
     .picker-item.selected {
       opacity: 1;
-      font-size: 26px;
+      font-size: 20px;
       font-weight: 500;
     }
 
@@ -191,7 +191,7 @@
       right: 8px;
       top: 50%;
       transform: translateY(-50%);
-      font-size: 18px;
+      font-size: 14px;
       opacity: 0.6;
       pointer-events: none;
       z-index: 3;
@@ -199,14 +199,60 @@
     }
 
     .set-row {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      position: relative;
     }
 
     .set-row .set-number {
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 600;
       opacity: 0.7;
       margin-bottom: 4px;
+    }
+
+    .remove-set-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #ef4444;
+      color: white;
+      border: none;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .remove-set-btn:hover {
+      background: #dc2626;
+    }
+
+    .add-set-btn {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      background: rgba(124, 58, 237, 0.15);
+      border: 1px dashed rgba(124, 58, 237, 0.4);
+      border-radius: 8px;
+      color: #a78bfa;
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .add-set-btn:hover {
+      background: rgba(124, 58, 237, 0.25);
+      border-color: rgba(124, 58, 237, 0.6);
     }
   </style>
 </head>
@@ -249,23 +295,6 @@
           <option value="__new__">-- New exercise --</option>
         </select>
         <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06); display:none;" />
-
-        <!-- Number of sets selector -->
-        <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-          <label class="mono" style="font-size:0.9rem; opacity:0.9">Number of sets:</label>
-          <button id="decreaseSets" class="secondary" style="padding:6px 12px; font-size:18px;">−</button>
-          <span id="setsCount" style="font-size:18px; font-weight:600; min-width:30px; text-align:center;">3</span>
-          <button id="increaseSets" class="secondary" style="padding:6px 12px; font-size:18px;">+</button>
-        </div>
-
-        <!-- Weight unit selector -->
-        <div style="margin-top:8px;">
-          <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight unit:</label>
-          <select id="modalUnit" style="padding:8px; margin-left:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);">
-            <option value="kg">kg</option>
-            <option value="lb">lb</option>
-          </select>
-        </div>
 
         <!-- Individual sets container -->
         <div id="setsContainer" style="max-height:500px; overflow-y:auto; margin-top:12px;">
@@ -411,11 +440,7 @@
 
       const select = document.getElementById('modalExerciseSelect');
       const newInput = document.getElementById('modalExerciseNew');
-      const setsCountDisplay = document.getElementById('setsCount');
       const setsContainer = document.getElementById('setsContainer');
-      const decreaseBtn = document.getElementById('decreaseSets');
-      const increaseBtn = document.getElementById('increaseSets');
-      const unitSelect = document.getElementById('modalUnit');
       const cardioFields = document.getElementById('modalCardioFields');
       const durationInput = document.getElementById('modalDuration');
       const distanceInput = document.getElementById('modalDistance');
@@ -423,6 +448,7 @@
 
       let numberOfSets = 3;
       const setData = []; // Will store {weight: number, reps: number} for each set
+      const weightUnit = 'kg'; // Always use kg
 
       // Create iOS-style picker wheel
       function createPicker(min, max, defaultValue) {
@@ -449,7 +475,7 @@
         if (selectedIndex === -1) selectedIndex = 0;
         
         function updatePosition() {
-          const offset = selectedIndex * -40;
+          const offset = selectedIndex * -32;
           scroll.style.transform = `translateY(${offset}px)`;
           items.forEach((item, idx) => {
             item.classList.toggle('selected', idx === selectedIndex);
@@ -465,7 +491,7 @@
         function onStart(y) {
           isDragging = true;
           touchStartY = y;
-          scrollStartY = selectedIndex * 40;
+          scrollStartY = selectedIndex * 32;
           scroll.style.transition = 'none';
         }
 
@@ -473,10 +499,10 @@
           if (!isDragging) return;
           const deltaY = touchStartY - y;
           const newScrollY = scrollStartY + deltaY;
-          const newIndex = Math.round(newScrollY / 40);
+          const newIndex = Math.round(newScrollY / 32);
           const clampedIndex = Math.max(0, Math.min(items.length - 1, newIndex));
           selectedIndex = clampedIndex;
-          scroll.style.transform = `translateY(${-clampedIndex * 40}px)`;
+          scroll.style.transform = `translateY(${-clampedIndex * 32}px)`;
           items.forEach((item, idx) => {
             item.classList.toggle('selected', idx === clampedIndex);
           });
@@ -536,6 +562,18 @@
           setNumber.textContent = `Set ${i + 1}`;
           setRow.appendChild(setNumber);
           
+          // Remove button (only show if more than 1 set)
+          if (numberOfSets > 1) {
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-set-btn';
+            removeBtn.textContent = '−';
+            removeBtn.onclick = (e) => {
+              e.preventDefault();
+              removeSet(i);
+            };
+            setRow.appendChild(removeBtn);
+          }
+          
           const pickerContainer = document.createElement('div');
           pickerContainer.className = 'picker-container';
           
@@ -548,7 +586,7 @@
           const weightPicker = createPicker(0, 200, setData[i].weight);
           const weightLabel = document.createElement('div');
           weightLabel.className = 'picker-label';
-          weightLabel.textContent = unitSelect.value || 'kg';
+          weightLabel.textContent = weightUnit;
           weightPicker.element.appendChild(weightLabel);
           pickerContainer.appendChild(weightPicker.element);
           
@@ -568,7 +606,30 @@
           setData[i].getRepsPicker = () => repsPicker;
         }
         
-        setsCountDisplay.textContent = numberOfSets;
+        // Add "+" button at the bottom
+        if (numberOfSets < 10) {
+          const addBtn = document.createElement('button');
+          addBtn.className = 'add-set-btn';
+          addBtn.textContent = '+';
+          addBtn.onclick = (e) => {
+            e.preventDefault();
+            addSetRow();
+          };
+          setsContainer.appendChild(addBtn);
+        }
+      }
+      
+      function removeSet(index) {
+        if (numberOfSets <= 1) return;
+        setData.splice(index, 1);
+        numberOfSets--;
+        renderSets();
+      }
+      
+      function addSetRow() {
+        if (numberOfSets >= 10) return;
+        numberOfSets++;
+        renderSets();
       }
 
       // populate exercise list from global exercises store
@@ -583,7 +644,6 @@
       }
 
       // preset values
-      unitSelect.value = 'kg';
       durationInput.value = '';
       distanceInput.value = '';
 
@@ -594,34 +654,16 @@
       
       // adjust fields based on mode
       if (mode === 'cardio') {
-        decreaseBtn.parentElement.style.display = 'none';
-        setsContainer.parentElement.style.display = 'none';
-        unitSelect.parentElement.style.display = 'none';
+        setsContainer.style.display = 'none';
         cardioFields.style.display = '';
         numberOfSets = 1;
       } else {
-        decreaseBtn.parentElement.style.display = '';
-        setsContainer.parentElement.style.display = '';
-        unitSelect.parentElement.style.display = '';
+        setsContainer.style.display = '';
         cardioFields.style.display = 'none';
         renderSets();
       }
 
       // handlers
-      function onDecreaseSet() {
-        if (numberOfSets > 1) {
-          numberOfSets--;
-          renderSets();
-        }
-      }
-
-      function onIncreaseSet() {
-        if (numberOfSets < 10) {
-          numberOfSets++;
-          renderSets();
-        }
-      }
-
       function onSelectChange() {
         if (select.value === '__new__') newInput.style.display = '';
         else newInput.style.display = 'none';
@@ -630,8 +672,6 @@
       function closeModal() {
         modal.style.display = 'none';
         select.removeEventListener('change', onSelectChange);
-        decreaseBtn.removeEventListener('click', onDecreaseSet);
-        increaseBtn.removeEventListener('click', onIncreaseSet);
         cancelBtn.removeEventListener('click', onCancel);
         addBtn.removeEventListener('click', onAdd);
       }
@@ -695,8 +735,6 @@
       }
 
       select.addEventListener('change', onSelectChange);
-      decreaseBtn.addEventListener('click', onDecreaseSet);
-      increaseBtn.addEventListener('click', onIncreaseSet);
       
       const cancelBtn = document.getElementById('modalCancel');
       const addBtn = document.getElementById('modalAdd');
