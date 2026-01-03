@@ -761,10 +761,33 @@ Notes: felt good"
 
     async function logActionToSheet(action, details = '') {
       if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
-      const payload = { action, details };
+      // Build payload carefully: if `details` is a JSON string or an object
+      // that contains fields like `sets` or `rows`, merge those fields into
+      // the top-level payload so the Apps Script receives them as top-level keys.
+      let payload = { action };
+      // attempt to parse details if it's a JSON string
+      let parsedDetails = details;
+      if (typeof details === 'string') {
+        try {
+          parsedDetails = JSON.parse(details);
+        } catch (e) {
+          // leave as string
+          parsedDetails = details;
+        }
+      }
+      if (parsedDetails && typeof parsedDetails === 'object' && !Array.isArray(parsedDetails)) {
+        // merge keys from parsedDetails into payload (but don't override action or _token)
+        for (const k of Object.keys(parsedDetails)) {
+          if (k === 'action' || k === '_token') continue;
+          payload[k] = parsedDetails[k];
+        }
+      } else {
+        // not an object — send as details field
+        payload.details = parsedDetails;
+      }
       // Include token only when explicitly set in constant or locally in browser storage
-      if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;
       try {
+        if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;
         const localToken = localStorage.getItem(SHEETS_LOCAL_TOKEN_KEY);
         if (localToken) payload._token = localToken;
       } catch (e) {
