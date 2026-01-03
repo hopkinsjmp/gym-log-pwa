@@ -822,8 +822,9 @@ Notes: felt good"
         const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
         // avoid exact-duplicate queue entries (same fingerprint)
         const exists = q.some((it) => it.fingerprint === fingerprint);
-        if (!exists) q.push(item);
-        q.push(item);
+        if (!exists) {
+          q.push(item);
+        }
         localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q));
         updateSyncStatus();
         return { ok: false, queued: true };
