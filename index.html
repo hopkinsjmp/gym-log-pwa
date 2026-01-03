@@ -145,6 +145,51 @@ Notes: felt good"
 
   <div class="tiny" id="pwaInfo"></div>
 
+  <!-- Add-Set modal -->
+  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999;">
+    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb;">
+      <h3 style="margin:0 0 8px; font-size:1.1rem;">Add Set(s)</h3>
+      <div style="display:flex; gap:8px; flex-direction:column;">
+        <label class="mono" style="font-size:0.9rem; opacity:0.9">Exercise</label>
+        <select id="modalExerciseSelect" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06)">
+          <option value="__new__">-- New exercise --</option>
+        </select>
+        <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06); display:none;" />
+
+        <div style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Sets</label>
+            <input id="modalSets" type="number" min="1" value="3" style="width:100%; padding:8px; border-radius:8px;" />
+          </div>
+          <div style="flex:1">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Reps</label>
+            <input id="modalReps" type="number" min="0" value="8" style="width:100%; padding:8px; border-radius:8px;" />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight</label>
+            <input id="modalWeight" type="number" step="0.5" style="width:100%; padding:8px; border-radius:8px;" />
+          </div>
+          <div style="width:110px">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Unit</label>
+            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px;">
+              <option value="kg">kg</option>
+              <option value="lb">lb</option>
+              <option value="">(none)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+          <button id="modalCancel" class="secondary" type="button">Cancel</button>
+          <button id="modalAdd" type="button">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const STORAGE_KEY = "gym-log";
 
@@ -264,30 +309,104 @@ Notes: felt good"
     }
 
     async function addSet() {
+      // Open modal UI for adding sets (prefill exercises)
       const d = loadStructuredData();
       let session = getCurrentSession(d);
       if (!session) {
-        flashStatus('No session found — creating one', 1500);
-        await newSession();
-        session = getCurrentSession();
+        // create a session silently
+        session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
+        d.sessions.push(session);
+        saveStructuredData(d);
       }
-      // pick the last exercise by default
-      let exercise = session.exercises && session.exercises.length ? session.exercises[session.exercises.length - 1] : null;
-      if (!exercise) {
-        const ename = prompt('No exercise found — enter exercise name');
-        if (!ename) return flashStatus('Cancelled', 1200);
-        exercise = { id: Date.now(), name: ename.trim(), sets: [], notes: '' };
-        session.exercises.push(exercise);
+
+      const select = document.getElementById('modalExerciseSelect');
+      const newInput = document.getElementById('modalExerciseNew');
+      const setsInput = document.getElementById('modalSets');
+      const repsInput = document.getElementById('modalReps');
+      const weightInput = document.getElementById('modalWeight');
+      const unitSelect = document.getElementById('modalUnit');
+      const modal = document.getElementById('addSetModal');
+
+      // populate exercise list
+      select.innerHTML = '<option value="__new__">-- New exercise --</option>';
+      if (session.exercises && session.exercises.length) {
+        for (const ex of session.exercises) {
+          const opt = document.createElement('option');
+          opt.value = String(ex.id);
+          opt.textContent = ex.name;
+          select.appendChild(opt);
+        }
+        // select last exercise by default
+        select.value = String(session.exercises[session.exercises.length - 1].id);
+        newInput.style.display = 'none';
+      } else {
+        select.value = '__new__';
+        newInput.style.display = '';
       }
-      const reps = prompt('Reps (number)', '8');
-      if (reps === null) return flashStatus('Cancelled', 1200);
-      const weight = prompt('Weight (units optional, e.g. 60kg)', '');
-      if (weight === null) return flashStatus('Cancelled', 1200);
-      const setObj = { ts: new Date().toISOString(), reps: reps ? Number(reps) : null, weight: weight || '' };
-      exercise.sets.push(setObj);
-      saveStructuredData(d);
-      flashStatus('Set added');
-      try { await logActionToSheet('add_set', JSON.stringify({ sessionId: session.id, exercise: exercise.name, set: setObj })); } catch (e) {}
+
+      // preset values
+      setsInput.value = 3;
+      repsInput.value = 8;
+      weightInput.value = '';
+      unitSelect.value = 'kg';
+
+      // show modal
+      modal.style.display = 'flex';
+
+      // handlers
+      function onSelectChange() {
+        if (select.value === '__new__') newInput.style.display = '';
+        else newInput.style.display = 'none';
+      }
+
+      function closeModal() {
+        modal.style.display = 'none';
+        select.removeEventListener('change', onSelectChange);
+        cancelBtn.removeEventListener('click', onCancel);
+        addBtn.removeEventListener('click', onAdd);
+      }
+
+      function onCancel() {
+        closeModal();
+        flashStatus('Cancelled', 900);
+      }
+
+      async function onAdd() {
+        const setsCount = Math.max(1, Number(setsInput.value) || 1);
+        const repsVal = repsInput.value === '' ? null : Number(repsInput.value);
+        const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');
+        let exObj = null;
+        if (select.value === '__new__') {
+          const name = newInput.value && newInput.value.trim();
+          if (!name) return flashStatus('Enter exercise name', 1500);
+          exObj = { id: Date.now(), name: name, sets: [], notes: '' };
+          session.exercises.push(exObj);
+        } else {
+          exObj = session.exercises.find(e => String(e.id) === String(select.value));
+          if (!exObj) {
+            flashStatus('Exercise not found', 1500);
+            return;
+          }
+        }
+
+        // Add sets with slightly different timestamps
+        for (let i = 0; i < setsCount; i++) {
+          const ts = new Date(Date.now() + i * 1000).toISOString();
+          const setObj = { ts, reps: repsVal, weight: weightVal };
+          exObj.sets.push(setObj);
+        }
+
+        saveStructuredData(d);
+        closeModal();
+        flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
+        try { await logActionToSheet('add_set', JSON.stringify({ sessionId: session.id, exercise: exObj.name, sets: setsCount })); } catch (e) {}
+      }
+
+      select.addEventListener('change', onSelectChange);
+      const cancelBtn = document.getElementById('modalCancel');
+      const addBtn = document.getElementById('modalAdd');
+      cancelBtn.addEventListener('click', onCancel);
+      addBtn.addEventListener('click', onAdd);
     }
 
     async function exportRowsToSheet() {
