@@ -1,1287 +1,770 @@
-<!DOCTYPE html><!DOCTYPE html>
-
-<html lang="en"><html lang="en">
-
-<head><head>
-
-  <meta charset="utf-8" />  <meta charset="utf-8" />
-
-  <meta name="viewport" content="width=device-width, initial-scale=1" />  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <title>Gym Log</title>
 
-  <meta name="theme-color" content="#111827" />  <title>Gym Log</title>
-
+  <!-- PWA basics -->
+  <meta name="theme-color" content="#111827" />
   <link rel="manifest" href="./manifest.json" />
 
-  <meta name="apple-mobile-web-app-capable" content="yes" />  <!-- PWA basics -->
+  <!-- Nice-to-haves (Android/Chrome + iOS-ish) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GymLog" />
 
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />  <meta name="theme-color" content="#111827" />
-
-  <meta name="apple-mobile-web-app-title" content="GymLog" />  <link rel="manifest" href="./manifest.json" />
-
-
-
-  <style>  <!-- Nice-to-haves (Android/Chrome + iOS-ish) -->
-
-    body {  <meta name="apple-mobile-web-app-capable" content="yes" />
-
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-      margin: 0;  <meta name="apple-mobile-web-app-title" content="GymLog" />
-
-      padding: 16px;
-
-      background: #111827;  <!-- Optional: you can add an iOS icon later if you want -->
-
-      color: #f9fafb;  <!-- <link rel="apple-touch-icon" href="./icon-192.png" /> -->
-
-    }
+  <!-- Optional: you can add an iOS icon later if you want -->
+  <!-- <link rel="apple-touch-icon" href="./icon-192.png" /> -->
 
   <style>
-
-    h1 {    body {
-
-      margin: 0 0 12px;      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-
-      font-size: 1.4rem;      margin: 0;
-
-    }      padding: 16px;
-
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
       background: #111827;
+      color: #f9fafb;
+    }
 
-    .hint {      color: #f9fafb;
+    h1 {
+      margin: 0 0 12px;
+      font-size: 1.4rem;
+    }
 
-      margin: 0 0 12px;    }
-
+    .hint {
+      margin: 0 0 12px;
       opacity: 0.75;
+      font-size: 0.95rem;
+      line-height: 1.3;
+    }
 
-      font-size: 0.95rem;    h1 {
+    textarea {
+      width: 100%;
+      min-height: 240px;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #f9fafb;
+      outline: none;
+      resize: vertical;
+      box-sizing: border-box;
+    }
 
-      line-height: 1.3;      margin: 0 0 12px;
-
-    }      font-size: 1.4rem;
-
+    textarea:focus {
+      border-color: rgba(124, 58, 237, 0.7);
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
     }
 
     .row {
-
-      display: flex;    .hint {
-
-      gap: 10px;      margin: 0 0 12px;
-
-      margin-top: 12px;      opacity: 0.75;
-
-      align-items: center;      font-size: 0.95rem;
-
-      flex-wrap: wrap;      line-height: 1.3;
-
-    }    }
-
-
-
-    button {    textarea {
-
-      padding: 12px 16px;      width: 100%;
-
-      font-size: 16px;      min-height: 240px;
-
-      border-radius: 10px;      padding: 12px;
-
-      border: none;      font-size: 16px;
-
-      background: #7c3aed;      border-radius: 10px;
-
-      color: white;      border: 1px solid rgba(255,255,255,0.12);
-
-      font-weight: 600;      background: rgba(255,255,255,0.06);
-
-      cursor: pointer;      color: #f9fafb;
-
-    }      outline: none;
-
-      resize: vertical;
-
-    button.secondary {      box-sizing: border-box;
-
-      background: rgba(255,255,255,0.12);    }
-
-      color: #f9fafb;
-
-    }    textarea:focus {
-
-      border-color: rgba(124, 58, 237, 0.7);
-
-    button:disabled {      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
-
-      opacity: 0.5;    }
-
-      cursor: not-allowed;
-
-    }    .row {
-
       display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
 
-    .status {      gap: 10px;
-
-      font-size: 0.95rem;      margin-top: 12px;
-
-      opacity: 0.85;      align-items: center;
-
-      min-height: 1.2em;      flex-wrap: wrap;
-
-    }    }
-
-
-
-    .tiny {    button {
-
-      font-size: 0.85rem;      padding: 12px 16px;
-
-      opacity: 0.75;      font-size: 16px;
-
-      margin-top: 10px;      border-radius: 10px;
-
-    }      border: none;
-
+    button {
+      padding: 12px 16px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: none;
       background: #7c3aed;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
 
-    input, select {      color: white;
-
-      padding: 8px;      font-weight: 600;
-
-      border-radius: 8px;      cursor: pointer;
-
-      background: rgba(255,255,255,0.04);    }
-
+    button.secondary {
+      background: rgba(255,255,255,0.12);
       color: #f9fafb;
+    }
 
-      border: 1px solid rgba(255,255,255,0.06);    button.secondary {
+    .status {
+      font-size: 0.95rem;
+      opacity: 0.85;
+      min-height: 1.2em;
+    }
 
-      font-size: 14px;      background: rgba(255,255,255,0.12);
+    .tiny {
+      font-size: 0.85rem;
+      opacity: 0.75;
+      margin-top: 10px;
+      line-height: 1.35;
+    }
 
-    }      color: #f9fafb;
-
+    code {
+      background: rgba(255,255,255,0.08);
+      padding: 2px 6px;
+      border-radius: 6px;
     }
 
     .mono {
-
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;    .status {
-
-    }      font-size: 0.95rem;
-
-  </style>      opacity: 0.85;
-
-</head>      min-height: 1.2em;
-
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
+  </style>
+</head>
 
 <body>
+  <h1>🏋️ Gym Log</h1>
+  <p class="hint">Type your workout notes. It auto-saves locally on this device.</p>
 
-  <h1>🏋️ Gym Log</h1>    .tiny {
+  <textarea
+    id="log"
+    placeholder="e.g.
+Bench Press
+20kg x 12
+30kg x 8
+Notes: felt good"
+  ></textarea>
 
-  <p class="hint">Quick logging for strength training and cardio. All workouts sync to Google Sheets.</p>      font-size: 0.85rem;
+  <div class="row">
+    <button id="save" type="button">Save</button>
+    <button class="secondary" id="clear" type="button">Clear</button>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
-      opacity: 0.75;
-
-  <div class="row">      margin-top: 10px;
-
-    <button id="logSet" type="button">Log Set</button>      line-height: 1.35;
-
-    <button id="logRun" type="button">Log Run</button>    }
-
-    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
-
-  </div>    code {
-
-      background: rgba(255,255,255,0.08);
-
-  <div class="status" id="status" style="margin-top:8px;"></div>      padding: 2px 6px;
-
-  <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>      border-radius: 6px;
-
-    }
-
-  <!-- Pending actions queue panel -->
-
-  <div id="queuePanel" style="margin-top:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">    .mono {
-
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
-      <div style="font-weight:700">Pending sync</div>    }
-
-      <div style="display:flex; gap:8px;">  </style>
-
-        <button id="retryQueue" class="secondary" type="button">Retry all</button></head>
-
-        <button id="downloadQueue" class="secondary" type="button">Download</button>
-
-        <button id="clearQueue" class="secondary" type="button">Clear</button><body>
-
-      </div>  <h1>🏋️ Gym Log</h1>
-
-    </div>  <p class="hint">Quick logging for strength training and cardio. All workouts sync to Google Sheets.</p>
-
-    <div id="queueList" style="margin-top:8px; max-height:180px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size:13px;"></div>
-
-  </div>  <div class="row">
-
-    <button id="logSet" type="button">Log Set</button>
-
-  <div class="tiny" id="pwaInfo"></div>    <button id="logRun" type="button">Log Run</button>
-
-    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
-
-  <!-- Add-Set modal -->  </div>
-
-  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999;">
-
-    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb;">  <div class="status" id="status" style="margin-top:8px;"></div>
-
-      <h3 style="margin:0 0 8px; font-size:1.1rem;">Log Set</h3>  <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
-
-      <div style="display:flex; gap:8px; flex-direction:column;">
-
-        <label class="mono" style="font-size:0.9rem; opacity:0.9">Exercise</label>  <!-- Pending actions queue panel -->
-
-        <select id="modalExerciseSelect" style="padding:8px; border-radius:8px;">  <div id="queuePanel" style="margin-top:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">
-
-          <option value="__new__">-- New exercise --</option>    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-
-        </select>      <div style="font-weight:700">Pending sync</div>
-
-        <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; display:none;" />      <div style="display:flex; gap:8px;">
-
+  <!-- Debug: Pending actions / queue panel -->
+  <div id="queuePanel" style="margin-top:10px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+      <div style="font-weight:700">Pending actions</div>
+      <div style="display:flex; gap:8px;">
         <button id="retryQueue" class="secondary" type="button">Retry all</button>
-
-        <div style="display:flex; gap:8px;">        <button id="downloadQueue" class="secondary" type="button">Download</button>
-
-          <div style="flex:1">        <button id="clearQueue" class="secondary" type="button">Clear</button>
-
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Sets</label>      </div>
-
-            <input id="modalSets" type="number" min="1" value="3" style="width:100%; padding:8px; border-radius:8px;" />    </div>
-
-          </div>    <div id="queueList" style="margin-top:8px; max-height:180px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size:13px;"></div>
-
-          <div style="flex:1">  </div>
-
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Reps</label>
-
-            <input id="modalReps" type="number" min="0" value="8" style="width:100%; padding:8px; border-radius:8px;" />  <div class="tiny" id="pwaInfo"></div>
-
-          </div>
-
-        </div>  <!-- Add-Set modal -->
-
-  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999;">
-
-        <div style="display:flex; gap:8px;">    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb;">
-
-          <div style="flex:1">      <h3 style="margin:0 0 8px; font-size:1.1rem;">Add Set(s)</h3>
-
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight</label>      <div style="display:flex; gap:8px; flex-direction:column;">
-
-            <input id="modalWeight" type="number" step="0.5" style="width:100%; padding:8px; border-radius:8px;" />        <label class="mono" style="font-size:0.9rem; opacity:0.9">Exercise</label>
-
-          </div>        <select id="modalExerciseSelect" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06)">
-
-          <div style="width:110px">          <option value="__new__">-- New exercise --</option>
-
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Unit</label>        </select>
-
-            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px;">        <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06); display:none;" />
-
-              <option value="kg">kg</option>
-
-              <option value="lb">lb</option>        <div style="display:flex; gap:8px;">
-
-              <option value="">(none)</option>          <div style="flex:1">
-
-            </select>            <label class="mono" style="font-size:0.9rem; opacity:0.9">Sets</label>
-
-          </div>            <input id="modalSets" type="number" min="1" value="3" style="width:100%; padding:8px; border-radius:8px;" />
-
-        </div>          </div>
-
-          <div style="flex:1">
-
-        <!-- Cardio fields (hidden for strength mode) -->            <label class="mono" style="font-size:0.9rem; opacity:0.9">Reps</label>
-
-        <div id="modalCardioFields" style="display:none;">            <input id="modalReps" type="number" min="0" value="8" style="width:100%; padding:8px; border-radius:8px;" />
-
-          <div style="display:flex; gap:8px;">          </div>
-
-            <div style="flex:1">        </div>
-
-              <label class="mono" style="font-size:0.9rem; opacity:0.9">Duration (s)</label>
-
-              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px;" />        <div style="display:flex; gap:8px;">
-
-            </div>          <div style="flex:1">
-
-            <div style="width:120px">            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight</label>
-
-              <label class="mono" style="font-size:0.9rem; opacity:0.9">Distance (km)</label>            <input id="modalWeight" type="number" step="0.5" style="width:100%; padding:8px; border-radius:8px;" />
-
-              <input id="modalDistance" type="number" step="0.01" placeholder="km" style="width:100%; padding:8px; border-radius:8px;" />          </div>
-
-            </div>          <div style="width:110px">
-
-          </div>            <label class="mono" style="font-size:0.9rem; opacity:0.9">Unit</label>
-
-        </div>            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px;">
-
-              <option value="kg">kg</option>
-
-        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">              <option value="lb">lb</option>
-
-          <button id="modalCancel" class="secondary" type="button">Cancel</button>              <option value="">(none)</option>
-
-          <button id="modalAdd" type="button">Add</button>            </select>
-
-        </div>          </div>
-
-      </div>        </div>
-
+        <button id="downloadQueue" class="secondary" type="button">Download</button>
+        <button id="clearQueue" class="secondary" type="button">Clear</button>
+      </div>
     </div>
+    <div id="queueList" style="margin-top:8px; max-height:180px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size:13px;"></div>
+  </div>
 
-  </div>        <!-- Cardio fields (hidden for strength mode) -->
+  <div class="row">
+    <button id="backupDrive" class="secondary" type="button">Backup to Drive</button>
+    <button id="restoreDrive" class="secondary" type="button">Restore from Drive</button>
+    <button id="exportBtn" class="secondary" type="button">Export (.txt)</button>
+    <button id="importBtn" class="secondary" type="button">Import (.txt)</button>
+    <input id="fileInput" type="file" accept="text/plain" style="display:none" />
+  </div>
 
+  <div class="row">
+    <button id="logSet" class="secondary" type="button">Log Set</button>
+    <button id="logRun" class="secondary" type="button">Log Run</button>
+    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
+  </div>
+
+  <div class="tiny" id="pwaInfo"></div>
+
+  <!-- Add-Set modal -->
+  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999;">
+    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb;">
+      <h3 style="margin:0 0 8px; font-size:1.1rem;">Add Set(s)</h3>
+      <div style="display:flex; gap:8px; flex-direction:column;">
+        <label class="mono" style="font-size:0.9rem; opacity:0.9">Exercise</label>
+        <select id="modalExerciseSelect" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06)">
+          <option value="__new__">-- New exercise --</option>
+        </select>
+        <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06); display:none;" />
+
+        <div style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Sets</label>
+            <input id="modalSets" type="number" min="1" value="3" style="width:100%; padding:8px; border-radius:8px;" />
+          </div>
+          <div style="flex:1">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Reps</label>
+            <input id="modalReps" type="number" min="0" value="8" style="width:100%; padding:8px; border-radius:8px;" />
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight</label>
+            <input id="modalWeight" type="number" step="0.5" style="width:100%; padding:8px; border-radius:8px;" />
+          </div>
+          <div style="width:110px">
+            <label class="mono" style="font-size:0.9rem; opacity:0.9">Unit</label>
+            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px;">
+              <option value="kg">kg</option>
+              <option value="lb">lb</option>
+              <option value="">(none)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Cardio fields (hidden for strength mode) -->
         <div id="modalCardioFields" style="display:none;">
-
-  <script>          <div style="display:flex; gap:8px;">
-
-    const statusEl = document.getElementById("status");            <div style="flex:1">
-
-    const pwaInfo = document.getElementById("pwaInfo");              <label class="mono" style="font-size:0.9rem; opacity:0.9">Duration (s)</label>
-
-    const logSetBtn = document.getElementById('logSet');              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px;" />
-
-    const logRunBtn = document.getElementById('logRun');            </div>
-
-    const addExerciseBtn = document.getElementById('addExercise');            <div style="width:120px">
-
+          <div style="display:flex; gap:8px;">
+            <div style="flex:1">
+              <label class="mono" style="font-size:0.9rem; opacity:0.9">Duration (s)</label>
+              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px;" />
+            </div>
+            <div style="width:120px">
               <label class="mono" style="font-size:0.9rem; opacity:0.9">Distance (km)</label>
-
-    function flashStatus(msg, ms = 1500) {              <input id="modalDistance" type="number" step="0.01" placeholder="km" style="width:100%; padding:8px; border-radius:8px;" />
-
-      statusEl.textContent = msg;            </div>
-
-      window.clearTimeout(flashStatus._t);          </div>
-
-      flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);        </div>
-
-    }
+              <input id="modalDistance" type="number" step="0.01" placeholder="km" style="width:100%; padding:8px; border-radius:8px;" />
+            </div>
+          </div>
+        </div>
 
         <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
-
-    // --- Exercises and sets store ---          <button id="modalCancel" class="secondary" type="button">Cancel</button>
-
-    const EXERCISES_KEY = 'gym-exercises';          <button id="modalAdd" type="button">Add</button>
-
-    const SETS_KEY = 'gym-sets';        </div>
-
+          <button id="modalCancel" class="secondary" type="button">Cancel</button>
+          <button id="modalAdd" type="button">Add</button>
+        </div>
       </div>
+    </div>
+  </div>
 
-    function loadExercises() {    </div>
+  <script>
+    const STORAGE_KEY = "gym-log";
 
-      try {  </div>
+    const textarea = document.getElementById("log");
+    const statusEl = document.getElementById("status");
+    const saveBtn = document.getElementById("save");
+    const clearBtn = document.getElementById("clear");
+    const pwaInfo = document.getElementById("pwaInfo");
 
-        return JSON.parse(localStorage.getItem(EXERCISES_KEY) || '[]');
+    // Load saved data on startup
+    textarea.value = localStorage.getItem(STORAGE_KEY) || "";
 
-      } catch (e) {  <script>
-
-        return [];    const statusEl = document.getElementById("status");
-
-      }    const pwaInfo = document.getElementById("pwaInfo");
-
-    }    const logSetBtn = document.getElementById('logSet');
-
-    const logRunBtn = document.getElementById('logRun');
-
-    function saveExercises(arr) {    const addExerciseBtn = document.getElementById('addExercise');
-
-      localStorage.setItem(EXERCISES_KEY, JSON.stringify(arr || []));
-
-      updateExerciseSelect();    function flashStatus(msg, ms = 1500) {
-
-    }      statusEl.textContent = msg;
-
+    function flashStatus(msg, ms = 1500) {
+      statusEl.textContent = msg;
       window.clearTimeout(flashStatus._t);
+      flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);
+    }
 
-    function loadSets() {      flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);
+    function saveNow() {
+      localStorage.setItem(STORAGE_KEY, textarea.value);
+      flashStatus("Saved locally ✔️");
+      // Try to send save event to Google Sheet (or queue if offline)
+      try {
+        enqueueAction('save', JSON.stringify({ length: textarea.value.length })).catch(() => {});
+      } catch (e) {
+        // ignore
+      }
+    }
 
-      try {    }
+  saveBtn.addEventListener("click", saveNow);
 
-        return JSON.parse(localStorage.getItem(SETS_KEY) || '[]');
+    // Auto-save as you type (debounced)
+    let t = null;
+    textarea.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        localStorage.setItem(STORAGE_KEY, textarea.value);
+        flashStatus("Auto-saved…", 800);
+      }, 300);
+    });
 
-      } catch (e) {    // --- Exercises and sets store ---
+  // --- Structured data helpers (exercises + sets store) ---
+  const logSetBtn = document.getElementById('logSet');
+  const logRunBtn = document.getElementById('logRun');
+  const addExerciseBtn = document.getElementById('addExercise');
 
-        return [];
+    const EXERCISES_KEY = 'gym-exercises';
+    const SETS_KEY = 'gym-sets';
 
-      }    const EXERCISES_KEY = 'gym-exercises';
-
-    }    const SETS_KEY = 'gym-sets';
-
-
-
-    function saveSets(arr) {    // Exercises are a global list saved to localStorage so they persist across sessions/devices (and can be synced to the Sheet).
-
-      localStorage.setItem(SETS_KEY, JSON.stringify(arr || []));    function loadExercises() {
-
-    }      try {
-
+    // Exercises are a global list saved to localStorage so they persist across sessions/devices (and can be synced to the Sheet).
+    function loadExercises() {
+      try {
         return JSON.parse(localStorage.getItem(EXERCISES_KEY) || '[]');
-
-    function updateExerciseSelect() {      } catch (e) {
-
-      const select = document.getElementById('modalExerciseSelect');        return [];
-
-      const exercises = loadExercises();      }
-
-      const current = select && select.value;    }
-
-      if (!select) return;
-
-      select.innerHTML = '<option value="__new__">-- New exercise --</option>';    function saveExercises(arr) {
-
-      for (const ex of exercises) {      localStorage.setItem(EXERCISES_KEY, JSON.stringify(arr || []));
-
-        const opt = document.createElement('option');      updateExerciseSelect();
-
-        opt.value = String(ex.id);    }
-
-        opt.textContent = ex.name;
-
-        select.appendChild(opt);    function loadSets() {
-
-      }      try {
-
-      if (current) select.value = current;        return JSON.parse(localStorage.getItem(SETS_KEY) || '[]');
-
-    }      } catch (e) {
-
+      } catch (e) {
         return [];
+      }
+    }
 
-    function generateId() {      }
+    function saveExercises(arr) {
+      localStorage.setItem(EXERCISES_KEY, JSON.stringify(arr || []));
+      updateExerciseSelect();
+    }
 
-      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);    }
-
+    function loadSets() {
+      try {
+        return JSON.parse(localStorage.getItem(SETS_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
     }
 
     function saveSets(arr) {
-
-    async function addExercise() {      localStorage.setItem(SETS_KEY, JSON.stringify(arr || []));
-
-      const name = prompt('Exercise name (e.g. Bench Press)');    }
-
-      if (!name) return flashStatus('Cancelled', 1200);
-
-      const exercises = loadExercises();    function updateExerciseSelect() {
-
-      const ex = { id: generateId(), name: name.trim(), notes: '' };      const select = document.getElementById('modalExerciseSelect');
-
-      exercises.push(ex);      const exercises = loadExercises();
-
-      saveExercises(exercises);      // keep the default new option
-
-      flashStatus('Exercise added');      const current = select && select.value;
-
-      try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) {}      if (!select) return;
-
-    }      select.innerHTML = '<option value="__new__">-- New exercise --</option>';
-
-      for (const ex of exercises) {
-
-    async function logSet(mode = 'strength') {        const opt = document.createElement('option');
-
-      const select = document.getElementById('modalExerciseSelect');        opt.value = String(ex.id);
-
-      const newInput = document.getElementById('modalExerciseNew');        opt.textContent = ex.name;
-
-      const setsInput = document.getElementById('modalSets');        select.appendChild(opt);
-
-      const repsInput = document.getElementById('modalReps');      }
-
-      const weightInput = document.getElementById('modalWeight');      // try to reselect previous value
-
-      const unitSelect = document.getElementById('modalUnit');      if (current) select.value = current;
-
-      const cardioFields = document.getElementById('modalCardioFields');    }
-
-      const durationInput = document.getElementById('modalDuration');
-
-      const distanceInput = document.getElementById('modalDistance');    // generate a compact client-side id for sets/exercises to help server-side dedupe and lookup
-
-      const modal = document.getElementById('addSetModal');    function generateId() {
-
-      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
-
-      updateExerciseSelect();    }
-
-      const exercises = loadExercises();
-
-      if (exercises && exercises.length) {    async function addExercise() {
-
-        select.value = String(exercises[exercises.length - 1].id);      // Add exercise to global exercises list so it's available across sessions/devices
-
-        newInput.style.display = 'none';      const name = prompt('Exercise name (e.g. Bench Press)');
-
-      } else {      if (!name) return flashStatus('Cancelled', 1200);
-
-        select.value = '__new__';      const exercises = loadExercises();
-
-        newInput.style.display = '';      const ex = { id: generateId(), name: name.trim(), notes: '' };
-
-      }      exercises.push(ex);
-
-      saveExercises(exercises);
-
-      setsInput.value = 3;      flashStatus('Exercise added');
-
-      repsInput.value = 8;      try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) {}
-
-      weightInput.value = '';    }
-
-      unitSelect.value = 'kg';
-
-      durationInput.value = '';    async function logSet(mode = 'strength') {
-
-      distanceInput.value = '';      // Open modal UI for logging sets (prefill exercises)
-
-
-
-      const header = modal.querySelector('h3');      const select = document.getElementById('modalExerciseSelect');
-
-      header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set';      const newInput = document.getElementById('modalExerciseNew');
-
-      modal.style.display = 'flex';        const setsInput = document.getElementById('modalSets');
-
-      const repsInput = document.getElementById('modalReps');
-
-      if (mode === 'cardio') {      const weightInput = document.getElementById('modalWeight');
-
-        repsInput.parentElement.style.display = 'none';      const unitSelect = document.getElementById('modalUnit');
-
-        weightInput.parentElement.parentElement.style.display = 'none';      const cardioFields = document.getElementById('modalCardioFields');
-
-        cardioFields.style.display = '';      const durationInput = document.getElementById('modalDuration');
-
-        setsInput.value = 1;      const distanceInput = document.getElementById('modalDistance');
-
-      } else {      const modal = document.getElementById('addSetModal');
-
-        repsInput.parentElement.style.display = '';
-
-        weightInput.parentElement.parentElement.style.display = '';      // populate exercise list from global exercises store
-
-        cardioFields.style.display = 'none';      updateExerciseSelect();
-
-      }      const exercises = loadExercises();
-
-      if (exercises && exercises.length) {
-
-      function onSelectChange() {        select.value = String(exercises[exercises.length - 1].id);
-
-        if (select.value === '__new__') newInput.style.display = '';        newInput.style.display = 'none';
-
-        else newInput.style.display = 'none';      } else {
-
-      }        select.value = '__new__';
-
-        newInput.style.display = '';
-
-      function closeModal() {      }
-
-        modal.style.display = 'none';
-
-        select.removeEventListener('change', onSelectChange);  // preset values (strength defaults)
-
-        cancelBtn.removeEventListener('click', onCancel);  setsInput.value = 3;
-
-        addBtn.removeEventListener('click', onAdd);  repsInput.value = 8;
-
-      }  weightInput.value = '';
-
-  unitSelect.value = 'kg';
-
-      function onCancel() {  durationInput.value = '';
-
-        closeModal();  distanceInput.value = '';
-
-        flashStatus('Cancelled', 900);
-
-      }  // show modal
-
-  const header = modal.querySelector('h3');
-
-      async function onAdd() {  header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set(s)';
-
-        const setsCount = Math.max(1, Number(setsInput.value) || 1);  modal.style.display = 'flex';
-
-        const repsVal = repsInput.value === '' ? null : Number(repsInput.value);      // adjust fields based on mode
-
-        const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');      if (mode === 'cardio') {
-
-        const durationVal = durationInput.value === '' ? null : Number(durationInput.value);        // show cardio inputs, hide strength inputs
-
-        const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);        repsInput.parentElement.style.display = 'none';
-
-        let exObj = null;        weightInput.parentElement.parentElement.style.display = 'none';
-
-        if (select.value === '__new__') {        cardioFields.style.display = '';
-
-          const name = newInput.value && newInput.value.trim();        setsInput.value = 1; // usually single entry for cardio
-
-          if (!name) return flashStatus('Enter exercise name', 1500);      } else {
-
-          exObj = { id: generateId(), name: name, notes: '' };        repsInput.parentElement.style.display = '';
-
-          const exercises = loadExercises();        weightInput.parentElement.parentElement.style.display = '';
-
-          exercises.push(exObj);        cardioFields.style.display = 'none';
-
-          saveExercises(exercises);      }
-
-        } else {
-
-          const exercises = loadExercises();      // handlers
-
-          exObj = exercises.find(e => String(e.id) === String(select.value));      function onSelectChange() {
-
-          if (!exObj) {        if (select.value === '__new__') newInput.style.display = '';
-
-            flashStatus('Exercise not found', 1500);        else newInput.style.display = 'none';
-
-            return;      }
-
-          }
-
-        }      function closeModal() {
-
-        modal.style.display = 'none';
-
-        const sets = loadSets();        select.removeEventListener('change', onSelectChange);
-
-        const createdSets = [];        cancelBtn.removeEventListener('click', onCancel);
-
-        for (let i = 0; i < setsCount; i++) {        addBtn.removeEventListener('click', onAdd);
-
-          const ts = new Date(Date.now() + i * 1000).toISOString();      }
-
-          const sid = generateId();
-
-          let setObj;      function onCancel() {
-
-          if (mode === 'cardio') {        closeModal();
-
-            setObj = { id: sid, exerciseId: exObj.id, exercise: exObj.name, ts, duration_s: durationVal, distance_km: distanceVal };        flashStatus('Cancelled', 900);
-
-          } else {      }
-
-            setObj = { id: sid, exerciseId: exObj.id, exercise: exObj.name, ts, reps: repsVal, weight: weightVal };
-
-          }      async function onAdd() {
-
-          sets.push(setObj);        const setsCount = Math.max(1, Number(setsInput.value) || 1);
-
-          createdSets.push(setObj);        const repsVal = repsInput.value === '' ? null : Number(repsInput.value);
-
-        }        const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');
-
-        saveSets(sets);        const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
-
-        closeModal();        const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
-
-        flashStatus(`${setsCount} set(s) logged`);        let exObj = null;
-
-        try {        if (select.value === '__new__') {
-
-          await enqueueAction('log_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));          const name = newInput.value && newInput.value.trim();
-
-        } catch (e) {}          if (!name) return flashStatus('Enter exercise name', 1500);
-
-      }          exObj = { id: Date.now(), name: name, notes: '' };
-
-          const exercises = loadExercises();
-
-      select.addEventListener('change', onSelectChange);          exercises.push(exObj);
-
-      const cancelBtn = document.getElementById('modalCancel');          saveExercises(exercises);
-
-      const addBtn = document.getElementById('modalAdd');        } else {
-
-      cancelBtn.addEventListener('click', onCancel);          const exercises = loadExercises();
-
-      addBtn.addEventListener('click', onAdd);          exObj = exercises.find(e => String(e.id) === String(select.value));
-
-    }          if (!exObj) {
-
-            flashStatus('Exercise not found', 1500);
-
-    logSetBtn.addEventListener('click', () => logSet('strength'));            return;
-
-    logRunBtn.addEventListener('click', () => logSet('cardio'));          }
-
-    addExerciseBtn.addEventListener('click', () => addExercise());        }
-
-
-
-    // --- Service worker registration ---        // Add sets with slightly different timestamps to the global sets store
-
-    if ("serviceWorker" in navigator) {        const sets = loadSets();
-
-      window.addEventListener("load", async () => {        const createdSets = [];
-
-        try {        for (let i = 0; i < setsCount; i++) {
-
-          await navigator.serviceWorker.register("./sw.js");          const ts = new Date(Date.now() + i * 1000).toISOString();
-
-        } catch (err) {          const sid = generateId();
-
-          console.warn("Service worker registration failed:", err);          let setObj;
-
-        }          if (mode === 'cardio') {
-
-      });            setObj = { id: sid, exerciseId: exObj.id, exercise: exObj.name, ts, duration_s: durationVal, distance_km: distanceVal };
-
-    }          } else {
-
-            setObj = { id: sid, exerciseId: exObj.id, exercise: exObj.name, ts, reps: repsVal, weight: weightVal };
-
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;          }
-
-    pwaInfo.innerHTML = isStandalone ? "✅ Running as installed PWA" : `ℹ️ Install: Chrome menu ⋮ → <b>Install app</b>`;          sets.push(setObj);
-
-  </script>          createdSets.push(setObj);
-
-        }
-
-  <script>        saveSets(sets);
-
-    // --- Google Sheets sync ---        closeModal();
-
-    const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwHk6otl1AmaEIBzZnPvfQX9055EOY2t3AnrqFFNpK93axNDtnF6r5AmkjO6XO505M2ew/exec';        flashStatus(`${setsCount} set(s) logged`);
-
-    const SHEETS_SECRET_TOKEN = '';        try {
-
-    const SHEETS_LOCAL_TOKEN_KEY = 'gym-log-sheet-token';          // send the full created sets payload so server/sheet can record client ids and full details
-
-          await enqueueAction('log_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
-
-    async function logActionToSheet(action, details = '') {        } catch (e) {}
-
-      if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;      }
-
-      let payload = { action };
-
-      let parsedDetails = details;      select.addEventListener('change', onSelectChange);
-
-      if (typeof details === 'string') {      const cancelBtn = document.getElementById('modalCancel');
-
-        try {      const addBtn = document.getElementById('modalAdd');
-
-          parsedDetails = JSON.parse(details);      cancelBtn.addEventListener('click', onCancel);
-
-        } catch (e) {      addBtn.addEventListener('click', onAdd);
-
-          parsedDetails = details;    }
-
-        }
-
-      }  // --- Wire UI buttons ---
-
-      if (parsedDetails && typeof parsedDetails === 'object' && !Array.isArray(parsedDetails)) {  logSetBtn.addEventListener('click', () => logSet('strength'));
-
-        for (const k of Object.keys(parsedDetails)) {  logRunBtn.addEventListener('click', () => logSet('cardio'));
-
-          if (k === 'action' || k === '_token') continue;  addExerciseBtn.addEventListener('click', () => addExercise());
-
-          payload[k] = parsedDetails[k];
-
-        }  // legacy token/test debug handlers removed from main UI
-
-      } else {    
-
-        payload.details = parsedDetails;    
-
-      }    
-
-      try {    
-
-        if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;    
-
-        const localToken = localStorage.getItem(SHEETS_LOCAL_TOKEN_KEY);    
-
-        if (localToken) payload._token = localToken;    
-
-      } catch (e) {}    
-
-      try {    
-
-        const res = await fetch(SHEETS_WEB_APP_URL, {    
-
-          method: 'POST',    
-
-          body: JSON.stringify(payload),  // --- previous token/test handlers (no visible buttons now) ---
-
-        });  // kept in case you want to re-enable them later
-
-        if (!res.ok) {  // setSheetTokenBtn.addEventListener('click', () => { ... })
-
-          const txt = await res.text().catch(() => '<no body>');    
-
-          console.warn('Log failed', res.status, txt);    
-
-          return { ok: false, status: res.status, text: txt };    
-
-        }    
-
-        try {    
-
-          const json = await res.json();    
-
-          return json;    
-
-        } catch (e) {    
-
-          return { ok: true };    
-
-        }    
-
-      } catch (err) {    
-
-        console.warn('Log error', err);    
-
-        return { ok: false, error: String(err) };    
-
-      }    
-
-    }    
-
-    
-
-    // --- Offline queue ---    
-
-    const ACTION_QUEUE_KEY = 'gym-log-queue';    
-
-    const syncStatusEl = document.getElementById('syncStatus');    
-
-    
-
-    function updateSyncStatus() {  // ---
-
-      try {    
-
-        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    
-
-        const pending = q.length || 0;    
-
-        if (!navigator.onLine) {    
-
-          syncStatusEl.textContent = `⚠️ Offline — ${pending} pending`;    
-
-        } else if (pending > 0) {    
-
-          syncStatusEl.textContent = `🔁 ${pending} pending`;    
-
-        } else {    
-
-          syncStatusEl.textContent = `✅ All synced`;    
-
-        }    
-
-      } catch (e) {    
-
-        syncStatusEl.textContent = navigator.onLine ? '✅ Online' : '⚠️ Offline';    
-
-      }    
-
-    }    
-
-    
-
-    async function enqueueAction(action, details = '') {    
-
-      const fingerprint = JSON.stringify({ action, details });    
-
-      const item = { action, details, ts: new Date().toISOString(), fingerprint };    
-
-      if (navigator.onLine) {    
-
-        try {    
-
-          const res = await logActionToSheet(action, details);    
-
-          if (res && res.ok) {    
-
-            try {    
-
-              const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    
-
-              const filtered = q.filter((it) => it.fingerprint !== fingerprint);    
-
-              if (filtered.length !== q.length) {    
-
-                localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(filtered));    
-
-              }    
-
-            } catch (e) {}    
-
-            updateSyncStatus();    
-
-            return { ok: true, sent: true, res };    
-
-          }    
-
-        } catch (e) {}    
-
-      }    
-
-      try {    
-
-        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    
-
-        const exists = q.some((it) => it.fingerprint === fingerprint);    
-
-        if (!exists) {    
-
-          q.push(item);    
-
-        }    
-
-        localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q));    
-
-        updateSyncStatus();    
-
-        return { ok: false, queued: true };    
-
-      } catch (e) {    
-
-        console.warn('Queue error', e);    
-
-        return { ok: false, error: String(e) };    
-
-      }    
-
-    }    
-
-    
-
-    async function flushQueue() {    
-
-      try {    
-
-        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    
-
-        if (!q || q.length === 0) return updateSyncStatus();    
-
-        updateSyncStatus();    
-
-        const remaining = [];    
-
-        const sentFingerprints = [];    
-
-        for (const item of q) {    
-
-          try {    
-
-            const res = await logActionToSheet(item.action, item.details);    
-
-            if (res && res.ok) {    
-
-              sentFingerprints.push(item.fingerprint);    
-
-            } else {    
-
-              remaining.push(item);    
-
-            }    
-
-          } catch (e) {    
-
-            remaining.push(item);    
-
-          }    
-
-        }    
-
-        try {    
-
-          let current = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    
-
-          if (sentFingerprints.length > 0 && Array.isArray(current) && current.length > 0) {    
-
-            current = current.filter((it) => !sentFingerprints.includes(it.fingerprint));    
-
-            const merged = current.concat(remaining.filter(r => !current.some(c => c.fingerprint === r.fingerprint)));    
-
-            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(merged));    
-
-          } else {    
-
-            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));    
-
-          }    
-
-        } catch (e) {    
-
-          localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));    
-
-        }    
-
-        updateSyncStatus();    
-
-        return { ok: true, remaining: remaining.length };    
-
-      } catch (e) {    
-
-        console.warn('Flush queue error', e);    
-
-        updateSyncStatus();    
-
-        return { ok: false, error: String(e) };    
-
-      }    
-
-    }    
-
-    
-
-    // --- Queue UI ---    
-
-    const queueListEl = document.getElementById('queueList');    
-
-    const retryQueueBtn = document.getElementById('retryQueue');    
-
-    const clearQueueBtn = document.getElementById('clearQueue');    
-
-    const downloadQueueBtn = document.getElementById('downloadQueue');    
-
-    
-
-    function renderQueue() {    
-
-      try {    
-
-        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    
-
-        if (!queueListEl) return;    
-
-        queueListEl.innerHTML = '';    
-
-        if (!q || q.length === 0) {    
-
-          queueListEl.textContent = 'No pending actions';    
-
-          return;    
-
-        }    
-
-        q.forEach((item) => {    
-
-          const el = document.createElement('div');    
-
-          el.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 4px; border-bottom:1px solid rgba(255,255,255,0.03)';    
-
-          const left = document.createElement('div');    
-
-          left.style.flex = '1';    
-
-          left.innerHTML = `<div><strong>${item.action}</strong> <span style="opacity:0.7">${new Date(item.ts).toLocaleString()}</span></div><div style="opacity:0.85;font-size:12px">${String(item.details).slice(0,80)}...</div>`;    
-
-          const right = document.createElement('div');    
-
-          right.style.cssText = 'display:flex; gap:6px';    
-
-          const retryBtn = document.createElement('button');    
-
-          retryBtn.textContent = 'Retry';    
-
-          retryBtn.className = 'secondary';    
-
-          retryBtn.style.fontSize = '12px';    
-
-          retryBtn.style.padding = '6px 10px';
-
-          retryBtn.addEventListener('click', async () => {    clearBtn.addEventListener("click", () => {
-
-            retryBtn.disabled = true;      textarea.value = "";
-
-            try {      localStorage.removeItem(STORAGE_KEY);
-
-              const res = await logActionToSheet(item.action, item.details);      flashStatus("Cleared ✔️");
-
-              if (res && res.ok) {      try {
-
-                const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');        enqueueAction('clear', '').catch(() => {});
-
-                const filtered = q2.filter((it) => it.fingerprint !== item.fingerprint);      } catch (e) {}
-
-                localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(filtered));    });
-
-                renderQueue();
-
-                updateSyncStatus();    // --- Service worker registration (helps installability + offline) ---
-
-                flashStatus('Retried ✔️');    // sw.js must be in the same folder as this index.html
-
-              } else {    if ("serviceWorker" in navigator) {
-
-                flashStatus('Retry failed');      window.addEventListener("load", async () => {
-
-              }        try {
-
-            } catch (e) {          const reg = await navigator.serviceWorker.register("./sw.js");
-
-              flashStatus('Retry failed');          // Optional: you can show this if you want
-
-            }          // console.log("Service worker registered:", reg.scope);
-
-            retryBtn.disabled = false;        } catch (err) {
-
-          });          console.warn("Service worker registration failed:", err);
-
-          const delBtn = document.createElement('button');          flashStatus("SW failed to register (check console) ⚠️", 2000);
-
-          delBtn.textContent = 'Remove';        }
-
-          delBtn.className = 'secondary';      });
-
-          delBtn.style.fontSize = '12px';    }
-
-          delBtn.style.padding = '6px 10px';
-
-          delBtn.addEventListener('click', () => {    // Tiny debug info to help confirm install / context
-
-            const q2 = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');    const isStandalone =
-
-            const filtered = q2.filter((it) => it.fingerprint !== item.fingerprint);      window.matchMedia("(display-mode: standalone)").matches ||
-
-            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(filtered));      window.navigator.standalone === true;
-
-            renderQueue();
-
-            updateSyncStatus();    const href = window.location.href;
-
-            flashStatus('Removed');    pwaInfo.innerHTML = isStandalone
-
-          });      ? "✅ Running as an installed app (standalone)."
-
-          right.appendChild(retryBtn);      : `ℹ️ Not installed yet.<br/>
-
-          right.appendChild(delBtn);         In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>
-
-          el.appendChild(left);         If you don’t see it, confirm these load with 200 OK:<br/>
-
-          el.appendChild(right);         • <code>manifest.json</code> • <code>sw.js</code> • icons.<br/>
-
-          queueListEl.appendChild(el);         <span class="mono">URL:</span> <code>${href}</code>`;
-
-        });  </script>
-
-      } catch (e) {  <!-- Google Identity Services (for Drive backup) -->
-
-        console.warn('Render queue error', e);  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-      }
-
-    }  <script>
-
-    // --- Backup / Restore helpers ---
-
-    retryQueueBtn.addEventListener('click', async () => {    // STORAGE_KEY and textarea exist in the outer script above
-
-      retryQueueBtn.disabled = true;    const backupBtn = document.getElementById('backupDrive');
-
-      flashStatus('Retrying...', 2000);    const restoreBtn = document.getElementById('restoreDrive');
-
-      await flushQueue();    const exportBtn = document.getElementById('exportBtn');
-
-      renderQueue();    const importBtn = document.getElementById('importBtn');
-
-      retryQueueBtn.disabled = false;    const fileInput = document.getElementById('fileInput');
-
-    });
-
-  // Google Drive OAuth client id placeholder. Replace with your own client ID.
-
-    clearQueueBtn.addEventListener('click', () => {  const GSI_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
-
-      localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify([]));    const GSI_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // creates files visible in Drive
-
-      renderQueue();
-
-      updateSyncStatus();    let gsiTokenClient = null;
-
-      flashStatus('Queue cleared');    let gsiAccessToken = null;
-
-    });
-
-    function initGsiClient() {
-
-    downloadQueueBtn.addEventListener('click', () => {      if (!window.google || !google.accounts || !google.accounts.oauth2) return;
-
-      const q = localStorage.getItem(ACTION_QUEUE_KEY) || '[]';      gsiTokenClient = google.accounts.oauth2.initTokenClient({
-
-      const blob = new Blob([q], { type: 'application/json' });        client_id: GSI_CLIENT_ID,
-
-      const url = URL.createObjectURL(blob);        scope: GSI_SCOPE,
-
-      const a = document.createElement('a');        callback: (tokenResponse) => {
-
-      a.href = url;          if (tokenResponse && tokenResponse.access_token) {
-
-      a.download = `gym-log-queue-${new Date().toISOString()}.json`;            gsiAccessToken = tokenResponse.access_token;
-
-      document.body.appendChild(a);            flashStatus('Google Drive: signed in ✔️', 2000);
-
-      a.click();          } else {
-
-      a.remove();            flashStatus('Google Drive: sign-in failed', 3000);
-
-      URL.revokeObjectURL(url);          }
-
-      flashStatus('Downloaded');        }
-
-    });      });
-
+      localStorage.setItem(SETS_KEY, JSON.stringify(arr || []));
     }
 
-    setTimeout(renderQueue, 800);
+    function updateExerciseSelect() {
+      const select = document.getElementById('modalExerciseSelect');
+      const exercises = loadExercises();
+      // keep the default new option
+      const current = select && select.value;
+      if (!select) return;
+      select.innerHTML = '<option value="__new__">-- New exercise --</option>';
+      for (const ex of exercises) {
+        const opt = document.createElement('option');
+        opt.value = String(ex.id);
+        opt.textContent = ex.name;
+        select.appendChild(opt);
+      }
+      // try to reselect previous value
+      if (current) select.value = current;
+    }
+
+    function loadStructuredData() {
+      // Keep backward compatibility: if STORAGE_KEY contains a sessions-based v2 payload,
+      // we won't delete it — but the app now prefers the global exercises + sets stores.
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveStructuredData(obj) {
+      // Deprecated for new flow — keep for compatibility
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+      flashStatus('Saved ✔️');
+    }
+
+    function getCurrentSession(data) {
+      // Sessions are optional in the new model. Return null unless the old schema is present.
+      const d = data || loadStructuredData();
+      if (!d || !d.sessions || d.sessions.length === 0) return null;
+      return d.sessions[d.sessions.length - 1];
+    }
+
+    // generate a compact client-side id for sets/exercises to help server-side dedupe and lookup
+    function generateId() {
+      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+    }
+
+    async function newSession() {
+      // Sessions are optional; keep behavior for backward compatibility
+      const d = loadStructuredData() || { version: 2, sessions: [] };
+      const session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
+      d.sessions.push(session);
+      saveStructuredData(d);
+      flashStatus('New session created');
+      try { await enqueueAction('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
+    }
+
+    async function addExercise() {
+      // Add exercise to global exercises list so it's available across sessions/devices
+      const name = prompt('Exercise name (e.g. Bench Press)');
+      if (!name) return flashStatus('Cancelled', 1200);
+      const exercises = loadExercises();
+      const ex = { id: Date.now(), name: name.trim(), notes: '' };
+      exercises.push(ex);
+      saveExercises(exercises);
+      flashStatus('Exercise added');
+      try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) {}
+    }
+
+    async function addSet(mode = 'strength') {
+      // Open modal UI for adding sets (prefill exercises)
+
+      const select = document.getElementById('modalExerciseSelect');
+      const newInput = document.getElementById('modalExerciseNew');
+        const setsInput = document.getElementById('modalSets');
+      const repsInput = document.getElementById('modalReps');
+      const weightInput = document.getElementById('modalWeight');
+      const unitSelect = document.getElementById('modalUnit');
+      const cardioFields = document.getElementById('modalCardioFields');
+      const durationInput = document.getElementById('modalDuration');
+      const distanceInput = document.getElementById('modalDistance');
+      const modal = document.getElementById('addSetModal');
+
+      // populate exercise list from global exercises store
+      updateExerciseSelect();
+      const exercises = loadExercises();
+      if (exercises && exercises.length) {
+        select.value = String(exercises[exercises.length - 1].id);
+        newInput.style.display = 'none';
+      } else {
+        select.value = '__new__';
+        newInput.style.display = '';
+      }
+
+  // preset values (strength defaults)
+  setsInput.value = 3;
+  repsInput.value = 8;
+  weightInput.value = '';
+  unitSelect.value = 'kg';
+  durationInput.value = '';
+  distanceInput.value = '';
+
+  // show modal
+  const header = modal.querySelector('h3');
+  header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set(s)';
+  modal.style.display = 'flex';
+      // adjust fields based on mode
+      if (mode === 'cardio') {
+        // show cardio inputs, hide strength inputs
+        repsInput.parentElement.style.display = 'none';
+        weightInput.parentElement.parentElement.style.display = 'none';
+        cardioFields.style.display = '';
+        setsInput.value = 1; // usually single entry for cardio
+      } else {
+        repsInput.parentElement.style.display = '';
+        weightInput.parentElement.parentElement.style.display = '';
+        cardioFields.style.display = 'none';
+      }
+
+      // handlers
+      function onSelectChange() {
+        if (select.value === '__new__') newInput.style.display = '';
+        else newInput.style.display = 'none';
+      }
+
+      function closeModal() {
+        modal.style.display = 'none';
+        select.removeEventListener('change', onSelectChange);
+        cancelBtn.removeEventListener('click', onCancel);
+        addBtn.removeEventListener('click', onAdd);
+      }
+
+      function onCancel() {
+        closeModal();
+        flashStatus('Cancelled', 900);
+      }
+
+      async function onAdd() {
+        const setsCount = Math.max(1, Number(setsInput.value) || 1);
+        const repsVal = repsInput.value === '' ? null : Number(repsInput.value);
+        const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');
+        const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
+        const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
+        let exObj = null;
+        if (select.value === '__new__') {
+          const name = newInput.value && newInput.value.trim();
+          if (!name) return flashStatus('Enter exercise name', 1500);
+          exObj = { id: Date.now(), name: name, notes: '' };
+          const exercises = loadExercises();
+          exercises.push(exObj);
+          saveExercises(exercises);
+        } else {
+          const exercises = loadExercises();
+          exObj = exercises.find(e => String(e.id) === String(select.value));
+          if (!exObj) {
+            flashStatus('Exercise not found', 1500);
+            return;
+          }
+        }
+
+        // Add sets with slightly different timestamps to the global sets store
+        const sets = loadSets();
+        const createdSets = [];
+        for (let i = 0; i < setsCount; i++) {
+          const ts = new Date(Date.now() + i * 1000).toISOString();
+          const sid = generateId();
+          let setObj;
+          if (mode === 'cardio') {
+            setObj = { id: sid, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
+          } else {
+            setObj = { id: sid, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
+          }
+          sets.push(setObj);
+          createdSets.push(setObj);
+        }
+        saveSets(sets);
+        closeModal();
+        flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
+        try {
+          // send the full created sets payload so server/sheet can record client ids and full details
+          await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
+        } catch (e) {}
+      }
+
+      select.addEventListener('change', onSelectChange);
+      const cancelBtn = document.getElementById('modalCancel');
+      const addBtn = document.getElementById('modalAdd');
+      cancelBtn.addEventListener('click', onCancel);
+      addBtn.addEventListener('click', onAdd);
+    }
+
+    async function exportRowsToSheet() {
+      // Flatten global sets list into rows for the Sheet. Each set is one row.
+      const sets = loadSets();
+      const exercises = loadExercises().reduce((m, e) => { m[e.id] = e; return m; }, {});
+      const rows = [];
+      for (let i = 0; i < sets.length; i++) {
+        const set = sets[i];
+        const ex = exercises[set.exerciseId] || { name: '' };
+        rows.push({
+          exerciseId: set.exerciseId,
+          exercise: ex.name,
+          setId: set.id,
+          setIndex: null,
+          setTs: set.ts,
+          reps: set.reps,
+          weight: set.weight,
+          notes: set.notes || ''
+        });
+      }
+      if (rows.length === 0) return flashStatus('No structured rows to export', 2000);
+      flashStatus('Exporting rows…', 5000);
+      try {
+        const res = await enqueueAction('export_rows', JSON.stringify({ rows }));
+        if (res && res.ok) {
+          flashStatus('Exported rows to Sheet ✔️', 2500);
+        } else if (res && res.queued) {
+          flashStatus('Export queued for sync ✔️', 2500);
+        } else {
+          console.warn('Export rows response', res);
+          flashStatus('Export failed (see console)', 4000);
+        }
+      } catch (e) {
+        console.warn(e);
+        flashStatus('Export failed', 3000);
+      }
+    }
+
+  // --- small UI bindings for main actions ---
+  // Wire the three primary buttons: Log Set, Log Run, Add Exercise
+  logSetBtn.addEventListener('click', () => addSet('strength'));
+  logRunBtn.addEventListener('click', () => addSet('cardio'));
+  addExerciseBtn.addEventListener('click', () => addExercise());
+
+  // legacy token/test debug handlers removed from main UI
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  // --- previous token/test handlers (no visible buttons now) ---
+  // kept in case you want to re-enable them later
+  // setSheetTokenBtn.addEventListener('click', () => { ... })
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  // ---
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    clearBtn.addEventListener("click", () => {
+      textarea.value = "";
+      localStorage.removeItem(STORAGE_KEY);
+      flashStatus("Cleared ✔️");
+      try {
+        enqueueAction('clear', '').catch(() => {});
+      } catch (e) {}
+    });
+
+    // --- Service worker registration (helps installability + offline) ---
+    // sw.js must be in the same folder as this index.html
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", async () => {
+        try {
+          const reg = await navigator.serviceWorker.register("./sw.js");
+          // Optional: you can show this if you want
+          // console.log("Service worker registered:", reg.scope);
+        } catch (err) {
+          console.warn("Service worker registration failed:", err);
+          flashStatus("SW failed to register (check console) ⚠️", 2000);
+        }
+      });
+    }
+
+    // Tiny debug info to help confirm install / context
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+
+    const href = window.location.href;
+    pwaInfo.innerHTML = isStandalone
+      ? "✅ Running as an installed app (standalone)."
+      : `ℹ️ Not installed yet.<br/>
+         In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>
+         If you don’t see it, confirm these load with 200 OK:<br/>
+         • <code>manifest.json</code> • <code>sw.js</code> • icons.<br/>
+         <span class="mono">URL:</span> <code>${href}</code>`;
+  </script>
+  <!-- Google Identity Services (for Drive backup) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <script>
+    // --- Backup / Restore helpers ---
+    // STORAGE_KEY and textarea exist in the outer script above
+    const backupBtn = document.getElementById('backupDrive');
+    const restoreBtn = document.getElementById('restoreDrive');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const fileInput = document.getElementById('fileInput');
+
+  // Google Drive OAuth client id placeholder. Replace with your own client ID.
+  const GSI_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+    const GSI_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // creates files visible in Drive
+
+    let gsiTokenClient = null;
+    let gsiAccessToken = null;
+
+    function initGsiClient() {
+      if (!window.google || !google.accounts || !google.accounts.oauth2) return;
+      gsiTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GSI_CLIENT_ID,
+        scope: GSI_SCOPE,
+        callback: (tokenResponse) => {
+          if (tokenResponse && tokenResponse.access_token) {
+            gsiAccessToken = tokenResponse.access_token;
+            flashStatus('Google Drive: signed in ✔️', 2000);
+          } else {
+            flashStatus('Google Drive: sign-in failed', 3000);
+          }
+        }
+      });
+    }
 
     // --- Logging to Google Sheets (Apps Script) ---
+  // Configure these placeholders with your Apps Script web app URL and secret token.
+  const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwHk6otl1AmaEIBzZnPvfQX9055EOY2t3AnrqFFNpK93axNDtnF6r5AmkjO6XO505M2ew/exec';
+  // Removed secret from repo. If your Apps Script now accepts anonymous posts,
+  // leave this empty. To use a secret again, set it locally in your browser
+  // (e.g. via localStorage) instead of committing it here.
+  const SHEETS_SECRET_TOKEN = '';
+  const SHEETS_LOCAL_TOKEN_KEY = 'gym-log-sheet-token';
 
-    window.addEventListener('online', () => {  // Configure these placeholders with your Apps Script web app URL and secret token.
-
-      updateSyncStatus();  const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwHk6otl1AmaEIBzZnPvfQX9055EOY2t3AnrqFFNpK93axNDtnF6r5AmkjO6XO505M2ew/exec';
-
-      setTimeout(flushQueue, 800);  // Removed secret from repo. If your Apps Script now accepts anonymous posts,
-
-    });  // leave this empty. To use a secret again, set it locally in your browser
-
-    window.addEventListener('offline', updateSyncStatus);  // (e.g. via localStorage) instead of committing it here.
-
-    window.addEventListener('load', () => {  const SHEETS_SECRET_TOKEN = '';
-
-      setTimeout(() => {  const SHEETS_LOCAL_TOKEN_KEY = 'gym-log-sheet-token';
-
-        updateSyncStatus();
-
-        flushQueue();    async function logActionToSheet(action, details = '') {
-
-      }, 1200);      if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
-
-    });      // Build payload carefully: if `details` is a JSON string or an object
-
-  </script>      // that contains fields like `sets` or `rows`, merge those fields into
-
-</body>      // the top-level payload so the Apps Script receives them as top-level keys.
-
-</html>      let payload = { action };
-
+    async function logActionToSheet(action, details = '') {
+      if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
+      // Build payload carefully: if `details` is a JSON string or an object
+      // that contains fields like `sets` or `rows`, merge those fields into
+      // the top-level payload so the Apps Script receives them as top-level keys.
+      let payload = { action };
       // attempt to parse details if it's a JSON string
       let parsedDetails = details;
       if (typeof details === 'string') {
