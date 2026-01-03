@@ -1050,7 +1050,31 @@
 
     // --- Offline queue & sync helpers ---
     const ACTION_QUEUE_KEY = 'gym-log-queue';
+    // Persisted list of set IDs we've confirmed were written to the Sheet. This
+    // helps avoid re-sending the same set on reloads or across retries.
+    const LOGGED_SET_IDS_KEY = 'gym-logged-ids';
     const syncStatusEl = document.getElementById('syncStatus');
+
+    function loadLoggedSetIds() {
+      try {
+        return JSON.parse(localStorage.getItem(LOGGED_SET_IDS_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveLoggedSetIds(arr) {
+      try {
+        localStorage.setItem(LOGGED_SET_IDS_KEY, JSON.stringify(Array.from(new Set(arr || []))));
+      } catch (e) {}
+    }
+
+    function addLoggedSetIds(ids) {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const current = loadLoggedSetIds();
+      const merged = Array.from(new Set(current.concat(ids)));
+      saveLoggedSetIds(merged);
+    }
 
     function updateSyncStatus() {
       try {
@@ -1086,6 +1110,22 @@
             } catch (e) {
               // ignore
             }
+            // If this was a log_set action, record the set ids that the server
+            // accepted so we don't re-send them after a reload.
+            try {
+              if (action === 'log_set') {
+                let parsed = details;
+                if (typeof details === 'string') {
+                  try { parsed = JSON.parse(details); } catch (e) { parsed = null; }
+                }
+                if (parsed && Array.isArray(parsed.sets)) {
+                  const ids = parsed.sets.map(s => s && s.id).filter(Boolean);
+                  if (ids.length) addLoggedSetIds(ids);
+                }
+              }
+            } catch (e) {
+              // ignore
+            }
             updateSyncStatus();
             return { ok: true, sent: true, res };
           }
@@ -1099,7 +1139,20 @@
         // avoid exact-duplicate queue entries (same fingerprint)
         const exists = q.some((it) => it.fingerprint === fingerprint);
         if (!exists) {
-          q.push(item);
+          // If this is a log_set, avoid queueing it if all set ids are already recorded
+          let shouldQueue = true;
+          if (action === 'log_set') {
+            let parsed = details;
+            if (typeof details === 'string') {
+              try { parsed = JSON.parse(details); } catch (e) { parsed = null; }
+            }
+            if (parsed && Array.isArray(parsed.sets)) {
+              const logged = new Set(loadLoggedSetIds());
+              const allLogged = parsed.sets.every(s => s && s.id && logged.has(s.id));
+              if (allLogged) shouldQueue = false;
+            }
+          }
+          if (shouldQueue) q.push(item);
         }
         localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q));
         updateSyncStatus();
@@ -1123,6 +1176,19 @@
             if (res && res.ok) {
               // mark this fingerprint as successfully sent
               sentFingerprints.push(item.fingerprint);
+              // record any set ids that were sent so we avoid re-sending them later
+              try {
+                if (item.action === 'log_set') {
+                  let parsed = item.details;
+                  if (typeof item.details === 'string') {
+                    try { parsed = JSON.parse(item.details); } catch (e) { parsed = null; }
+                  }
+                  if (parsed && Array.isArray(parsed.sets)) {
+                    const ids = parsed.sets.map(s => s && s.id).filter(Boolean);
+                    if (ids.length) addLoggedSetIds(ids);
+                  }
+                }
+              } catch (e) {}
             } else {
               remaining.push(item);
             }
@@ -1136,11 +1202,29 @@
           let current = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
           if (sentFingerprints.length > 0 && Array.isArray(current) && current.length > 0) {
             current = current.filter((it) => !sentFingerprints.includes(it.fingerprint));
-            // merge any items that failed during this run (remaining) ensuring order is preserved
-            // but avoid duplicating items already present
-            const remainingFingerprints = new Set((remaining || []).map(r => r.fingerprint));
-            const merged = current.concat(remaining.filter(r => !current.some(c => c.fingerprint === r.fingerprint)));
-            localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(merged));
+            // Remove any items from 'remaining' whose sets are already recorded on the client
+            try {
+              const loggedIds = new Set(loadLoggedSetIds());
+              const filteredRemaining = (remaining || []).filter(r => {
+                if (!r || !r.action) return true;
+                if (r.action !== 'log_set') return true;
+                let parsed = r.details;
+                if (typeof r.details === 'string') {
+                  try { parsed = JSON.parse(r.details); } catch (e) { parsed = null; }
+                }
+                if (!parsed || !Array.isArray(parsed.sets)) return true;
+                // if ALL set ids are already logged, drop this queued item
+                const allLogged = parsed.sets.every(s => s && s.id && loggedIds.has(s.id));
+                return !allLogged;
+              });
+              // merge any items that failed during this run (filteredRemaining) ensuring order is preserved
+              const merged = current.concat(filteredRemaining.filter(r => !current.some(c => c.fingerprint === r.fingerprint)));
+              localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(merged));
+            } catch (e) {
+              const remainingFingerprints = new Set((remaining || []).map(r => r.fingerprint));
+              const merged = current.concat(remaining.filter(r => !current.some(c => c.fingerprint === r.fingerprint)));
+              localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(merged));
+            }
           } else {
             localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));
           }
@@ -1201,6 +1285,19 @@
                 } catch (e) {
                   // ignore
                 }
+                // record logged set ids for log_set
+                try {
+                  if (item.action === 'log_set') {
+                    let parsed = item.details;
+                    if (typeof item.details === 'string') {
+                      try { parsed = JSON.parse(item.details); } catch (e) { parsed = null; }
+                    }
+                    if (parsed && Array.isArray(parsed.sets)) {
+                      const ids = parsed.sets.map(s => s && s.id).filter(Boolean);
+                      if (ids.length) addLoggedSetIds(ids);
+                    }
+                  }
+                } catch (e) {}
                 renderQueue();
                 updateSyncStatus();
                 flashStatus('Retried and removed ✔️');
