@@ -108,40 +108,37 @@
     /* iOS-style picker wheel */
     .picker-container {
       display: flex;
-      gap: 12px;
+      gap: 0;
       margin: 12px 0;
-      align-items: center;
-    }
-
-    .picker-wheel {
-      position: relative;
-      height: 180px;
-      overflow: hidden;
-      flex: 1;
+      align-items: stretch;
       background: rgba(255,255,255,0.03);
       border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.06);
+      position: relative;
+      height: 200px;
     }
 
-    .picker-wheel::before,
-    .picker-wheel::after {
+    .picker-container::before,
+    .picker-container::after {
       content: '';
       position: absolute;
       left: 0;
       right: 0;
-      height: 60px;
+      height: 70px;
       pointer-events: none;
       z-index: 2;
     }
 
-    .picker-wheel::before {
+    .picker-container::before {
       top: 0;
-      background: linear-gradient(to bottom, rgba(11,18,32,0.95), transparent);
+      background: linear-gradient(to bottom, rgba(11,18,32,1) 0%, rgba(11,18,32,0.9) 40%, transparent 100%);
+      border-radius: 10px 10px 0 0;
     }
 
-    .picker-wheel::after {
+    .picker-container::after {
       bottom: 0;
-      background: linear-gradient(to top, rgba(11,18,32,0.95), transparent);
+      background: linear-gradient(to top, rgba(11,18,32,1) 0%, rgba(11,18,32,0.9) 40%, transparent 100%);
+      border-radius: 0 0 10px 10px;
     }
 
     .picker-selection {
@@ -150,52 +147,66 @@
       right: 0;
       top: 50%;
       transform: translateY(-50%);
-      height: 44px;
-      border-top: 1px solid rgba(124, 58, 237, 0.5);
-      border-bottom: 1px solid rgba(124, 58, 237, 0.5);
-      background: rgba(124, 58, 237, 0.08);
+      height: 40px;
+      border-top: 0.5px solid rgba(255,255,255,0.2);
+      border-bottom: 0.5px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.02);
       pointer-events: none;
       z-index: 1;
     }
 
+    .picker-wheel {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
     .picker-scroll {
       position: relative;
-      padding: 68px 0;
-      transition: transform 0.2s ease-out;
+      padding: 80px 0;
+      transition: transform 0.15s ease-out;
     }
 
     .picker-item {
-      height: 44px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
-      font-weight: 500;
+      font-size: 24px;
+      font-weight: 400;
       cursor: pointer;
       user-select: none;
-      opacity: 0.4;
-      transition: opacity 0.2s;
+      opacity: 0.3;
+      transition: opacity 0.15s, font-size 0.15s;
     }
 
     .picker-item.selected {
       opacity: 1;
-      font-weight: 600;
+      font-size: 26px;
+      font-weight: 500;
+    }
+
+    .picker-label {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 18px;
+      opacity: 0.6;
+      pointer-events: none;
+      z-index: 3;
+      font-weight: 400;
     }
 
     .set-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      padding: 8px;
-      background: rgba(255,255,255,0.02);
-      border-radius: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
 
     .set-row .set-number {
-      width: 30px;
+      font-size: 15px;
       font-weight: 600;
       opacity: 0.7;
+      margin-bottom: 4px;
     }
   </style>
 </head>
@@ -247,25 +258,18 @@
           <button id="increaseSets" class="secondary" style="padding:6px 12px; font-size:18px;">+</button>
         </div>
 
-        <!-- Individual sets container -->
-        <div id="setsContainer" style="max-height:400px; overflow-y:auto; margin-top:8px;">
-          <!-- Sets will be dynamically added here -->
+        <!-- Weight unit selector -->
+        <div style="margin-top:8px;">
+          <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight unit:</label>
+          <select id="modalUnit" style="padding:8px; margin-left:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);">
+            <option value="kg">kg</option>
+            <option value="lb">lb</option>
+          </select>
         </div>
 
-        <!-- Global weight setting (optional) -->
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <div style="flex:1">
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Weight (all sets)</label>
-            <input id="modalWeight" type="number" step="0.5" placeholder="Optional" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);" />
-          </div>
-          <div style="width:110px">
-            <label class="mono" style="font-size:0.9rem; opacity:0.9">Unit</label>
-            <select id="modalUnit" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);">
-              <option value="kg">kg</option>
-              <option value="lb">lb</option>
-              <option value="">(none)</option>
-            </select>
-          </div>
+        <!-- Individual sets container -->
+        <div id="setsContainer" style="max-height:500px; overflow-y:auto; margin-top:12px;">
+          <!-- Sets will be dynamically added here -->
         </div>
 
         <!-- Cardio fields (hidden for strength mode) -->
@@ -411,7 +415,6 @@
       const setsContainer = document.getElementById('setsContainer');
       const decreaseBtn = document.getElementById('decreaseSets');
       const increaseBtn = document.getElementById('increaseSets');
-      const weightInput = document.getElementById('modalWeight');
       const unitSelect = document.getElementById('modalUnit');
       const cardioFields = document.getElementById('modalCardioFields');
       const durationInput = document.getElementById('modalDuration');
@@ -419,25 +422,12 @@
       const modal = document.getElementById('addSetModal');
 
       let numberOfSets = 3;
-      const setData = []; // Will store {reps: number} for each set
+      const setData = []; // Will store {weight: number, reps: number} for each set
 
       // Create iOS-style picker wheel
-      function createPicker(min, max, defaultValue, label) {
-        const container = document.createElement('div');
-        container.style.flex = '1';
-        
-        const labelEl = document.createElement('div');
-        labelEl.textContent = label;
-        labelEl.className = 'mono';
-        labelEl.style.cssText = 'font-size:0.85rem; opacity:0.7; margin-bottom:4px; text-align:center;';
-        container.appendChild(labelEl);
-
+      function createPicker(min, max, defaultValue) {
         const wheel = document.createElement('div');
         wheel.className = 'picker-wheel';
-        
-        const selection = document.createElement('div');
-        selection.className = 'picker-selection';
-        wheel.appendChild(selection);
 
         const scroll = document.createElement('div');
         scroll.className = 'picker-scroll';
@@ -453,13 +443,13 @@
         }
         
         wheel.appendChild(scroll);
-        container.appendChild(wheel);
 
         let currentValue = defaultValue;
         let selectedIndex = items.findIndex(item => Number(item.dataset.value) === defaultValue);
+        if (selectedIndex === -1) selectedIndex = 0;
         
         function updatePosition() {
-          const offset = selectedIndex * -44;
+          const offset = selectedIndex * -40;
           scroll.style.transform = `translateY(${offset}px)`;
           items.forEach((item, idx) => {
             item.classList.toggle('selected', idx === selectedIndex);
@@ -475,7 +465,7 @@
         function onStart(y) {
           isDragging = true;
           touchStartY = y;
-          scrollStartY = selectedIndex * 44;
+          scrollStartY = selectedIndex * 40;
           scroll.style.transition = 'none';
         }
 
@@ -483,10 +473,10 @@
           if (!isDragging) return;
           const deltaY = touchStartY - y;
           const newScrollY = scrollStartY + deltaY;
-          const newIndex = Math.round(newScrollY / 44);
+          const newIndex = Math.round(newScrollY / 40);
           const clampedIndex = Math.max(0, Math.min(items.length - 1, newIndex));
           selectedIndex = clampedIndex;
-          scroll.style.transform = `translateY(${-clampedIndex * 44}px)`;
+          scroll.style.transform = `translateY(${-clampedIndex * 40}px)`;
           items.forEach((item, idx) => {
             item.classList.toggle('selected', idx === clampedIndex);
           });
@@ -495,7 +485,7 @@
         function onEnd() {
           if (!isDragging) return;
           isDragging = false;
-          scroll.style.transition = 'transform 0.2s ease-out';
+          scroll.style.transition = 'transform 0.15s ease-out';
           updatePosition();
           currentValue = Number(items[selectedIndex].dataset.value);
         }
@@ -525,38 +515,57 @@
         wheel.addEventListener('touchend', () => onEnd());
 
         return {
-          element: container,
+          element: wheel,
           getValue: () => currentValue
         };
       }
 
-      // Render individual sets with pickers
+      // Render individual sets with dual pickers (weight + reps)
       function renderSets() {
         setsContainer.innerHTML = '';
         setData.length = numberOfSets;
         
         for (let i = 0; i < numberOfSets; i++) {
-          if (!setData[i]) setData[i] = { reps: 8 };
+          if (!setData[i]) setData[i] = { weight: 20, reps: 8 };
           
           const setRow = document.createElement('div');
           setRow.className = 'set-row';
           
           const setNumber = document.createElement('div');
           setNumber.className = 'set-number';
-          setNumber.textContent = `${i + 1}.`;
+          setNumber.textContent = `Set ${i + 1}`;
           setRow.appendChild(setNumber);
           
           const pickerContainer = document.createElement('div');
           pickerContainer.className = 'picker-container';
           
-          const repsPicker = createPicker(0, 50, setData[i].reps, 'Reps');
+          // Selection bar (shared between both pickers)
+          const selection = document.createElement('div');
+          selection.className = 'picker-selection';
+          pickerContainer.appendChild(selection);
+          
+          // Weight picker
+          const weightPicker = createPicker(0, 200, setData[i].weight);
+          const weightLabel = document.createElement('div');
+          weightLabel.className = 'picker-label';
+          weightLabel.textContent = unitSelect.value || 'kg';
+          weightPicker.element.appendChild(weightLabel);
+          pickerContainer.appendChild(weightPicker.element);
+          
+          // Reps picker
+          const repsPicker = createPicker(0, 50, setData[i].reps);
+          const repsLabel = document.createElement('div');
+          repsLabel.className = 'picker-label';
+          repsLabel.textContent = 'reps';
+          repsPicker.element.appendChild(repsLabel);
           pickerContainer.appendChild(repsPicker.element);
           
           setRow.appendChild(pickerContainer);
           setsContainer.appendChild(setRow);
           
-          // Store reference to picker
-          setData[i].getPicker = () => repsPicker;
+          // Store references to pickers
+          setData[i].getWeightPicker = () => weightPicker;
+          setData[i].getRepsPicker = () => repsPicker;
         }
         
         setsCountDisplay.textContent = numberOfSets;
@@ -574,7 +583,6 @@
       }
 
       // preset values
-      weightInput.value = '';
       unitSelect.value = 'kg';
       durationInput.value = '';
       distanceInput.value = '';
@@ -588,13 +596,13 @@
       if (mode === 'cardio') {
         decreaseBtn.parentElement.style.display = 'none';
         setsContainer.parentElement.style.display = 'none';
-        weightInput.parentElement.parentElement.style.display = 'none';
+        unitSelect.parentElement.style.display = 'none';
         cardioFields.style.display = '';
         numberOfSets = 1;
       } else {
         decreaseBtn.parentElement.style.display = '';
         setsContainer.parentElement.style.display = '';
-        weightInput.parentElement.parentElement.style.display = '';
+        unitSelect.parentElement.style.display = '';
         cardioFields.style.display = 'none';
         renderSets();
       }
@@ -634,9 +642,9 @@
       }
 
       async function onAdd() {
-        const weightVal = weightInput.value === '' ? '' : String(weightInput.value) + (unitSelect.value ? unitSelect.value : '');
         const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
         const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
+        const weightUnit = unitSelect.value;
         
         let exObj = null;
         if (select.value === '__new__') {
@@ -655,7 +663,7 @@
           }
         }
 
-        // Add sets with individual rep values
+        // Add sets with individual weight and rep values
         const sets = loadSets();
         const createdSets = [];
         
@@ -667,8 +675,10 @@
           if (mode === 'cardio') {
             setObj = { id: sid, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
           } else {
-            const repsVal = setData[i].getPicker().getValue();
-            setObj = { id: sid, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
+            const weightVal = setData[i].getWeightPicker().getValue();
+            const repsVal = setData[i].getRepsPicker().getValue();
+            const weightStr = weightVal > 0 ? `${weightVal}${weightUnit}` : '';
+            setObj = { id: sid, exerciseId: exObj.id, ts, reps: repsVal, weight: weightStr };
           }
           
           sets.push(setObj);
