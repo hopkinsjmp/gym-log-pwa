@@ -109,28 +109,21 @@
 
 <body>
   <h1>🏋️ Gym Log</h1>
-  <p class="hint">Type your workout notes. It auto-saves locally on this device.</p>
-
-  <textarea
-    id="log"
-    placeholder="e.g.
-Bench Press
-20kg x 12
-30kg x 8
-Notes: felt good"
-  ></textarea>
+  <p class="hint">Quick logging for strength training and cardio. All workouts sync to Google Sheets.</p>
 
   <div class="row">
-    <button id="save" type="button">Save</button>
-    <button class="secondary" id="clear" type="button">Clear</button>
-    <div class="status" id="status"></div>
+    <button id="logSet" type="button">Log Set</button>
+    <button id="logRun" type="button">Log Run</button>
+    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
   </div>
+
+  <div class="status" id="status" style="margin-top:8px;"></div>
   <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
-  <!-- Debug: Pending actions / queue panel -->
-  <div id="queuePanel" style="margin-top:10px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">
+  <!-- Pending actions queue panel -->
+  <div id="queuePanel" style="margin-top:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-      <div style="font-weight:700">Pending actions</div>
+      <div style="font-weight:700">Pending sync</div>
       <div style="display:flex; gap:8px;">
         <button id="retryQueue" class="secondary" type="button">Retry all</button>
         <button id="downloadQueue" class="secondary" type="button">Download</button>
@@ -138,20 +131,6 @@ Notes: felt good"
       </div>
     </div>
     <div id="queueList" style="margin-top:8px; max-height:180px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size:13px;"></div>
-  </div>
-
-  <div class="row">
-    <button id="backupDrive" class="secondary" type="button">Backup to Drive</button>
-    <button id="restoreDrive" class="secondary" type="button">Restore from Drive</button>
-    <button id="exportBtn" class="secondary" type="button">Export (.txt)</button>
-    <button id="importBtn" class="secondary" type="button">Import (.txt)</button>
-    <input id="fileInput" type="file" accept="text/plain" style="display:none" />
-  </div>
-
-  <div class="row">
-    <button id="logSet" class="secondary" type="button">Log Set</button>
-    <button id="logRun" class="secondary" type="button">Log Run</button>
-    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
   </div>
 
   <div class="tiny" id="pwaInfo"></div>
@@ -216,16 +195,11 @@ Notes: felt good"
   </div>
 
   <script>
-    const STORAGE_KEY = "gym-log";
-
-    const textarea = document.getElementById("log");
     const statusEl = document.getElementById("status");
-    const saveBtn = document.getElementById("save");
-    const clearBtn = document.getElementById("clear");
     const pwaInfo = document.getElementById("pwaInfo");
-
-    // Load saved data on startup
-    textarea.value = localStorage.getItem(STORAGE_KEY) || "";
+    const logSetBtn = document.getElementById('logSet');
+    const logRunBtn = document.getElementById('logRun');
+    const addExerciseBtn = document.getElementById('addExercise');
 
     function flashStatus(msg, ms = 1500) {
       statusEl.textContent = msg;
@@ -233,34 +207,7 @@ Notes: felt good"
       flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);
     }
 
-    function saveNow() {
-      localStorage.setItem(STORAGE_KEY, textarea.value);
-      flashStatus("Saved locally ✔️");
-      // Try to send save event to Google Sheet (or queue if offline)
-      try {
-        enqueueAction('save', JSON.stringify({ length: textarea.value.length })).catch(() => {});
-      } catch (e) {
-        // ignore
-      }
-    }
-
-  saveBtn.addEventListener("click", saveNow);
-
-    // Auto-save as you type (debounced)
-    let t = null;
-    textarea.addEventListener("input", () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        localStorage.setItem(STORAGE_KEY, textarea.value);
-        flashStatus("Auto-saved…", 800);
-      }, 300);
-    });
-
   // --- Structured data helpers (exercises + sets store) ---
-  const logSetBtn = document.getElementById('logSet');
-  const logRunBtn = document.getElementById('logRun');
-  const addExerciseBtn = document.getElementById('addExercise');
-
     const EXERCISES_KEY = 'gym-exercises';
     const SETS_KEY = 'gym-sets';
 
@@ -470,7 +417,7 @@ Notes: felt good"
         flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
         try {
           // send the full created sets payload so server/sheet can record client ids and full details
-          await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
+          await enqueueAction('log_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
         } catch (e) {}
       }
 
@@ -711,45 +658,12 @@ Notes: felt good"
       ? "✅ Running as an installed app (standalone)."
       : `ℹ️ Not installed yet.<br/>
          In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>
-         If you don’t see it, confirm these load with 200 OK:<br/>
+         If you don't see it, confirm these load with 200 OK:<br/>
          • <code>manifest.json</code> • <code>sw.js</code> • icons.<br/>
          <span class="mono">URL:</span> <code>${href}</code>`;
   </script>
-  <!-- Google Identity Services (for Drive backup) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <script>
-    // --- Backup / Restore helpers ---
-    // STORAGE_KEY and textarea exist in the outer script above
-    const backupBtn = document.getElementById('backupDrive');
-    const restoreBtn = document.getElementById('restoreDrive');
-    const exportBtn = document.getElementById('exportBtn');
-    const importBtn = document.getElementById('importBtn');
-    const fileInput = document.getElementById('fileInput');
-
-  // Google Drive OAuth client id placeholder. Replace with your own client ID.
-  const GSI_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
-    const GSI_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // creates files visible in Drive
-
-    let gsiTokenClient = null;
-    let gsiAccessToken = null;
-
-    function initGsiClient() {
-      if (!window.google || !google.accounts || !google.accounts.oauth2) return;
-      gsiTokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GSI_CLIENT_ID,
-        scope: GSI_SCOPE,
-        callback: (tokenResponse) => {
-          if (tokenResponse && tokenResponse.access_token) {
-            gsiAccessToken = tokenResponse.access_token;
-            flashStatus('Google Drive: signed in ✔️', 2000);
-          } else {
-            flashStatus('Google Drive: sign-in failed', 3000);
-          }
-        }
-      });
-    }
-
     // --- Logging to Google Sheets (Apps Script) ---
   // Configure these placeholders with your Apps Script web app URL and secret token.
   const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwHk6otl1AmaEIBzZnPvfQX9055EOY2t3AnrqFFNpK93axNDtnF6r5AmkjO6XO505M2ew/exec';
@@ -1056,182 +970,6 @@ Notes: felt good"
         updateSyncStatus();
         flushQueue();
       }, 1200);
-    });
-
-    window.addEventListener('load', () => {
-      // Give the GSI script a moment and init
-      setTimeout(initGsiClient, 600);
-    });
-
-    function requestDriveToken(interactive = true) {
-      if (!gsiTokenClient) return flashStatus('GSI not ready', 2000);
-      gsiTokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
-    }
-
-    // Upload backup text to Drive (creates a file in user's Drive root)
-    async function uploadBackupToDrive(text, filename = `gym-log-backup-${new Date().toISOString()}.txt`) {
-      if (!gsiAccessToken) {
-        requestDriveToken(true);
-        return;
-      }
-
-      const metadata = { name: filename };
-      const boundary = '-------314159265358979323846';
-      const delimiter = `\r\n--${boundary}\r\n`;
-      const closeDelimiter = `\r\n--${boundary}--`;
-
-      const multipartRequestBody =
-        delimiter +
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-        JSON.stringify(metadata) +
-        '\r\n' +
-        delimiter +
-        'Content-Type: text/plain\r\n\r\n' +
-        text +
-        closeDelimiter;
-
-      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer ' + gsiAccessToken,
-          'Content-Type': `multipart/related; boundary=${boundary}`
-        },
-        body: multipartRequestBody
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error('Drive upload failed', res.status, txt);
-        flashStatus('Drive upload failed', 3000);
-        return null;
-      }
-
-      const payload = await res.json();
-      flashStatus('Backup uploaded to Drive ✔️', 2500);
-      try {
-        enqueueAction('backup_drive_done', JSON.stringify(payload)).catch(() => {});
-      } catch (e) {}
-      return payload;
-    }
-
-    // List files created by this app (search by name prefix)
-    async function listBackups() {
-      if (!gsiAccessToken) {
-        requestDriveToken(true);
-        return [];
-      }
-      const q = `name contains 'gym-log-backup'`;
-      const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)`;
-      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + gsiAccessToken } });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.files || [];
-    }
-
-    async function downloadBackup(fileId) {
-      if (!gsiAccessToken) {
-        requestDriveToken(true);
-        return null;
-      }
-      const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + gsiAccessToken } });
-      if (!res.ok) {
-        flashStatus('Download failed', 3000);
-        return null;
-      }
-      return await res.text();
-    }
-
-    // --- Export / Import (local) ---
-    function exportToFile(text, filename = 'gym-log-export.txt') {
-      const blob = new Blob([text], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      flashStatus('Exported .txt ✔️', 1800);
-      try {
-        enqueueAction('export', JSON.stringify({ filename })).catch(() => {});
-      } catch (e) {}
-    }
-
-    fileInput.addEventListener('change', async (ev) => {
-      const f = ev.target.files && ev.target.files[0];
-      if (!f) return;
-      const txt = await f.text();
-      textarea.value = txt;
-      localStorage.setItem(STORAGE_KEY, txt);
-      flashStatus('Imported .txt ✔️', 1800);
-      try {
-        enqueueAction('import', JSON.stringify({ name: f.name, size: f.size })).catch(() => {});
-      } catch (e) {}
-      fileInput.value = '';
-    });
-
-    // --- button bindings ---
-    exportBtn.addEventListener('click', () => exportToFile(textarea.value));
-
-    importBtn.addEventListener('click', () => fileInput.click());
-
-    backupBtn.addEventListener('click', async () => {
-      // If client id not replaced, notify user
-      if (GSI_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
-        flashStatus('Please set your Google Client ID in the code to use Drive backup.', 4000);
-        return;
-      }
-      // Ensure token client is initialized
-      if (!gsiTokenClient) initGsiClient();
-      if (!gsiAccessToken) {
-        requestDriveToken(true);
-        // Wait a short while for interactive consent to complete before attempting upload
-        setTimeout(() => uploadBackupToDrive(textarea.value), 1200);
-        return;
-      }
-      await uploadBackupToDrive(textarea.value);
-    });
-
-    restoreBtn.addEventListener('click', async () => {
-      if (GSI_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
-        flashStatus('Please set your Google Client ID in the code to use Drive restore.', 4000);
-        return;
-      }
-      if (!gsiTokenClient) initGsiClient();
-      if (!gsiAccessToken) {
-        requestDriveToken(true);
-        setTimeout(async () => {
-          const files = await listBackups();
-          if (!files || files.length === 0) return flashStatus('No backups found', 2000);
-          // pick the most recent by modifiedTime
-          files.sort((a,b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
-          const content = await downloadBackup(files[0].id);
-          if (content != null) {
-            textarea.value = content;
-            localStorage.setItem(STORAGE_KEY, content);
-            flashStatus('Restored from Drive ✔️', 2000);
-            try {
-              enqueueAction('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
-            } catch (e) {}
-          }
-        }, 1200);
-        return;
-      }
-
-      const files = await listBackups();
-      if (!files || files.length === 0) return flashStatus('No backups found', 2000);
-      files.sort((a,b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
-      const content = await downloadBackup(files[0].id);
-      if (content != null) {
-        textarea.value = content;
-        localStorage.setItem(STORAGE_KEY, content);
-        flashStatus('Restored from Drive ✔️', 2000);
-        try {
-          enqueueAction('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
-        } catch (e) {}
-      }
     });
   </script>
 </body>
