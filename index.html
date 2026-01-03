@@ -232,7 +232,7 @@ Notes: felt good"
       }, 300);
     });
 
-    // --- Structured data helpers (simple v2 schema) ---
+    // --- Structured data helpers (exercises + sets store) ---
     const setSheetTokenBtn = document.getElementById('setSheetToken');
     const testLogBtn = document.getElementById('testLog');
     const newSessionBtn = document.getElementById('newSession');
@@ -240,71 +240,97 @@ Notes: felt good"
     const addSetBtn = document.getElementById('addSet');
     const exportRowsBtn = document.getElementById('exportRows');
 
-    function loadStructuredData() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        const init = { version: 2, sessions: [] };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(init));
-        return init;
-      }
+    const EXERCISES_KEY = 'gym-exercises';
+    const SETS_KEY = 'gym-sets';
+
+    // Exercises are a global list saved to localStorage so they persist across sessions/devices (and can be synced to the Sheet).
+    function loadExercises() {
       try {
-        const obj = JSON.parse(raw);
-        // If it's already the structured schema, return it
-        if (obj && (obj.version === 2 || Array.isArray(obj.sessions))) return obj;
-        // Otherwise fall through to migrate
+        return JSON.parse(localStorage.getItem(EXERCISES_KEY) || '[]');
       } catch (e) {
-        // not JSON — we'll migrate below
+        return [];
       }
-      // Migration: wrap legacy free-text into one session
-      const migrated = {
-        version: 2,
-        sessions: [
-          {
-            id: Date.now(),
-            date: new Date().toISOString(),
-            notes: raw || '',
-            exercises: []
-          }
-        ]
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-      return migrated;
+    }
+
+    function saveExercises(arr) {
+      localStorage.setItem(EXERCISES_KEY, JSON.stringify(arr || []));
+      updateExerciseSelect();
+    }
+
+    function loadSets() {
+      try {
+        return JSON.parse(localStorage.getItem(SETS_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveSets(arr) {
+      localStorage.setItem(SETS_KEY, JSON.stringify(arr || []));
+    }
+
+    function updateExerciseSelect() {
+      const select = document.getElementById('modalExerciseSelect');
+      const exercises = loadExercises();
+      // keep the default new option
+      const current = select && select.value;
+      if (!select) return;
+      select.innerHTML = '<option value="__new__">-- New exercise --</option>';
+      for (const ex of exercises) {
+        const opt = document.createElement('option');
+        opt.value = String(ex.id);
+        opt.textContent = ex.name;
+        select.appendChild(opt);
+      }
+      // try to reselect previous value
+      if (current) select.value = current;
+    }
+
+    function loadStructuredData() {
+      // Keep backward compatibility: if STORAGE_KEY contains a sessions-based v2 payload,
+      // we won't delete it — but the app now prefers the global exercises + sets stores.
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
     }
 
     function saveStructuredData(obj) {
+      // Deprecated for new flow — keep for compatibility
       localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
       flashStatus('Saved ✔️');
     }
 
     function getCurrentSession(data) {
+      // Sessions are optional in the new model. Return null unless the old schema is present.
       const d = data || loadStructuredData();
-      if (!d.sessions || d.sessions.length === 0) return null;
+      if (!d || !d.sessions || d.sessions.length === 0) return null;
       return d.sessions[d.sessions.length - 1];
     }
 
     async function newSession() {
-      const d = loadStructuredData();
+      // Sessions are optional; keep behavior for backward compatibility
+      const d = loadStructuredData() || { version: 2, sessions: [] };
       const session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
       d.sessions.push(session);
       saveStructuredData(d);
       flashStatus('New session created');
-  try { await enqueueAction('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
+      try { await enqueueAction('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
     }
 
     async function addExercise() {
+      // Add exercise to global exercises list so it's available across sessions/devices
       const name = prompt('Exercise name (e.g. Bench Press)');
       if (!name) return flashStatus('Cancelled', 1200);
-      const d = loadStructuredData();
-      let session = getCurrentSession(d);
-      if (!session) {
-        session = { id: Date.now(), date: new Date().toISOString(), notes: '', exercises: [] };
-        d.sessions.push(session);
-      }
-      const ex = { id: Date.now(), name: name.trim(), sets: [], notes: '' };
-      session.exercises.push(ex);
-      saveStructuredData(d);
+      const exercises = loadExercises();
+      const ex = { id: Date.now(), name: name.trim(), notes: '' };
+      exercises.push(ex);
+      saveExercises(exercises);
       flashStatus('Exercise added');
-  try { await enqueueAction('add_exercise', JSON.stringify({ sessionId: session.id, exercise: ex.name })); } catch (e) {}
+      try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) {}
     }
 
     async function addSet() {
@@ -326,17 +352,11 @@ Notes: felt good"
       const unitSelect = document.getElementById('modalUnit');
       const modal = document.getElementById('addSetModal');
 
-      // populate exercise list
-      select.innerHTML = '<option value="__new__">-- New exercise --</option>';
-      if (session.exercises && session.exercises.length) {
-        for (const ex of session.exercises) {
-          const opt = document.createElement('option');
-          opt.value = String(ex.id);
-          opt.textContent = ex.name;
-          select.appendChild(opt);
-        }
-        // select last exercise by default
-        select.value = String(session.exercises[session.exercises.length - 1].id);
+      // populate exercise list from global exercises store
+      updateExerciseSelect();
+      const exercises = loadExercises();
+      if (exercises && exercises.length) {
+        select.value = String(exercises[exercises.length - 1].id);
         newInput.style.display = 'none';
       } else {
         select.value = '__new__';
@@ -388,17 +408,17 @@ Notes: felt good"
           }
         }
 
-        // Add sets with slightly different timestamps
+        // Add sets with slightly different timestamps to the global sets store
+        const sets = loadSets();
         for (let i = 0; i < setsCount; i++) {
           const ts = new Date(Date.now() + i * 1000).toISOString();
-          const setObj = { ts, reps: repsVal, weight: weightVal };
-          exObj.sets.push(setObj);
+          const setObj = { id: Date.now() + i, exerciseId: exObj.id, ts, reps: repsVal, weight: weightVal };
+          sets.push(setObj);
         }
-
-        saveStructuredData(d);
+        saveSets(sets);
         closeModal();
-  flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
-  try { await enqueueAction('add_set', JSON.stringify({ sessionId: session.id, exercise: exObj.name, sets: setsCount })); } catch (e) {}
+          flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
+          try { await enqueueAction('add_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: setsCount })); } catch (e) {}
       }
 
       select.addEventListener('change', onSelectChange);
@@ -409,23 +429,22 @@ Notes: felt good"
     }
 
     async function exportRowsToSheet() {
-      const d = loadStructuredData();
+      // Flatten global sets list into rows for the Sheet. Each set is one row.
+      const sets = loadSets();
+      const exercises = loadExercises().reduce((m, e) => { m[e.id] = e; return m; }, {});
       const rows = [];
-      for (const s of d.sessions) {
-        if (!s.exercises || s.exercises.length === 0) {
-          rows.push({ sessionId: s.id, sessionDate: s.date, exercise: '', setIndex: null, reps: null, weight: '', notes: s.notes || '' });
-          continue;
-        }
-        for (const ex of s.exercises) {
-          if (!ex.sets || ex.sets.length === 0) {
-            rows.push({ sessionId: s.id, sessionDate: s.date, exercise: ex.name, setIndex: null, reps: null, weight: '', notes: ex.notes || '' });
-            continue;
-          }
-          for (let i = 0; i < ex.sets.length; i++) {
-            const set = ex.sets[i];
-            rows.push({ sessionId: s.id, sessionDate: s.date, exercise: ex.name, setIndex: i + 1, reps: set.reps, weight: set.weight, notes: ex.notes || '' });
-          }
-        }
+      for (let i = 0; i < sets.length; i++) {
+        const set = sets[i];
+        const ex = exercises[set.exerciseId] || { name: '' };
+        rows.push({
+          exerciseId: set.exerciseId,
+          exercise: ex.name,
+          setIndex: null,
+          setTs: set.ts,
+          reps: set.reps,
+          weight: set.weight,
+          notes: set.notes || ''
+        });
       }
       if (rows.length === 0) return flashStatus('No structured rows to export', 2000);
       flashStatus('Exporting rows…', 5000);
