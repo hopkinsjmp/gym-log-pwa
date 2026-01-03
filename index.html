@@ -157,6 +157,14 @@ Notes: felt good"
     function saveNow() {
       localStorage.setItem(STORAGE_KEY, textarea.value);
       flashStatus("Saved locally ✔️");
+      // Log save event to Google Sheet (if configured)
+      try {
+        if (typeof logActionToSheet === 'function') {
+          logActionToSheet('save', JSON.stringify({ length: textarea.value.length })).catch(() => {});
+        }
+      } catch (e) {
+        // ignore
+      }
     }
 
     saveBtn.addEventListener("click", saveNow);
@@ -175,6 +183,11 @@ Notes: felt good"
       textarea.value = "";
       localStorage.removeItem(STORAGE_KEY);
       flashStatus("Cleared ✔️");
+      try {
+        if (typeof logActionToSheet === 'function') {
+          logActionToSheet('clear', '').catch(() => {});
+        }
+      } catch (e) {}
     });
 
     // --- Service worker registration (helps installability + offline) ---
@@ -218,8 +231,8 @@ Notes: felt good"
     const importBtn = document.getElementById('importBtn');
     const fileInput = document.getElementById('fileInput');
 
-    // Google Drive OAuth client id placeholder. Replace with your own client ID.
-    const GSI_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+  // Google Drive OAuth client id placeholder. Replace with your own client ID.
+  const GSI_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
     const GSI_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // creates files visible in Drive
 
     let gsiTokenClient = null;
@@ -239,6 +252,33 @@ Notes: felt good"
           }
         }
       });
+    }
+
+    // --- Logging to Google Sheets (Apps Script) ---
+  // Configure these placeholders with your Apps Script web app URL and secret token.
+  const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwHk6otl1AmaEIBzZnPvfQX9055EOY2t3AnrqFFNpK93axNDtnF6r5AmkjO6XO505M2ew/exec';
+  const SHEETS_SECRET_TOKEN = 'nyPiRmzCLTNvpuJhOZxKYFqncHgROLvW';
+
+    async function logActionToSheet(action, details = '') {
+      if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
+      const payload = { _token: SHEETS_SECRET_TOKEN, action, details };
+      try {
+        const res = await fetch(SHEETS_WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          mode: 'cors'
+        });
+        if (!res.ok) {
+          console.warn('Log failed', await res.text());
+          return false;
+        }
+        const json = await res.json();
+        return json && json.ok === true;
+      } catch (err) {
+        console.warn('Log error', err);
+        return false;
+      }
     }
 
     window.addEventListener('load', () => {
@@ -291,6 +331,11 @@ Notes: felt good"
 
       const payload = await res.json();
       flashStatus('Backup uploaded to Drive ✔️', 2500);
+      try {
+        if (typeof logActionToSheet === 'function') {
+          logActionToSheet('backup_drive_done', JSON.stringify(payload)).catch(() => {});
+        }
+      } catch (e) {}
       return payload;
     }
 
@@ -334,6 +379,11 @@ Notes: felt good"
       a.remove();
       URL.revokeObjectURL(url);
       flashStatus('Exported .txt ✔️', 1800);
+      try {
+        if (typeof logActionToSheet === 'function') {
+          logActionToSheet('export', JSON.stringify({ filename })).catch(() => {});
+        }
+      } catch (e) {}
     }
 
     fileInput.addEventListener('change', async (ev) => {
@@ -343,6 +393,11 @@ Notes: felt good"
       textarea.value = txt;
       localStorage.setItem(STORAGE_KEY, txt);
       flashStatus('Imported .txt ✔️', 1800);
+      try {
+        if (typeof logActionToSheet === 'function') {
+          logActionToSheet('import', JSON.stringify({ name: f.name, size: f.size })).catch(() => {});
+        }
+      } catch (e) {}
       fileInput.value = '';
     });
 
@@ -386,6 +441,11 @@ Notes: felt good"
             textarea.value = content;
             localStorage.setItem(STORAGE_KEY, content);
             flashStatus('Restored from Drive ✔️', 2000);
+            try {
+              if (typeof logActionToSheet === 'function') {
+                logActionToSheet('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
+              }
+            } catch (e) {}
           }
         }, 1200);
         return;
@@ -399,6 +459,11 @@ Notes: felt good"
         textarea.value = content;
         localStorage.setItem(STORAGE_KEY, content);
         flashStatus('Restored from Drive ✔️', 2000);
+        try {
+          if (typeof logActionToSheet === 'function') {
+            logActionToSheet('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
+          }
+        } catch (e) {}
       }
     });
   </script>
