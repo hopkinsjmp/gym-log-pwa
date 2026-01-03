@@ -125,6 +125,7 @@ Notes: felt good"
     <button class="secondary" id="clear" type="button">Clear</button>
     <div class="status" id="status"></div>
   </div>
+  <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
   <div class="row">
     <button id="backupDrive" class="secondary" type="button">Backup to Drive</button>
@@ -211,17 +212,15 @@ Notes: felt good"
     function saveNow() {
       localStorage.setItem(STORAGE_KEY, textarea.value);
       flashStatus("Saved locally ✔️");
-      // Log save event to Google Sheet (if configured)
+      // Try to send save event to Google Sheet (or queue if offline)
       try {
-        if (typeof logActionToSheet === 'function') {
-          logActionToSheet('save', JSON.stringify({ length: textarea.value.length })).catch(() => {});
-        }
+        enqueueAction('save', JSON.stringify({ length: textarea.value.length })).catch(() => {});
       } catch (e) {
         // ignore
       }
     }
 
-    saveBtn.addEventListener("click", saveNow);
+  saveBtn.addEventListener("click", saveNow);
 
     // Auto-save as you type (debounced)
     let t = null;
@@ -289,7 +288,7 @@ Notes: felt good"
       d.sessions.push(session);
       saveStructuredData(d);
       flashStatus('New session created');
-      try { await logActionToSheet('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
+  try { await enqueueAction('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
     }
 
     async function addExercise() {
@@ -305,7 +304,7 @@ Notes: felt good"
       session.exercises.push(ex);
       saveStructuredData(d);
       flashStatus('Exercise added');
-      try { await logActionToSheet('add_exercise', JSON.stringify({ sessionId: session.id, exercise: ex.name })); } catch (e) {}
+  try { await enqueueAction('add_exercise', JSON.stringify({ sessionId: session.id, exercise: ex.name })); } catch (e) {}
     }
 
     async function addSet() {
@@ -398,8 +397,8 @@ Notes: felt good"
 
         saveStructuredData(d);
         closeModal();
-        flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
-        try { await logActionToSheet('add_set', JSON.stringify({ sessionId: session.id, exercise: exObj.name, sets: setsCount })); } catch (e) {}
+  flashStatus(`${setsCount} set(s) added to ${exObj.name}`);
+  try { await enqueueAction('add_set', JSON.stringify({ sessionId: session.id, exercise: exObj.name, sets: setsCount })); } catch (e) {}
       }
 
       select.addEventListener('change', onSelectChange);
@@ -431,9 +430,11 @@ Notes: felt good"
       if (rows.length === 0) return flashStatus('No structured rows to export', 2000);
       flashStatus('Exporting rows…', 5000);
       try {
-        const res = await logActionToSheet('export_rows', JSON.stringify({ rows }));
+        const res = await enqueueAction('export_rows', JSON.stringify({ rows }));
         if (res && res.ok) {
           flashStatus('Exported rows to Sheet ✔️', 2500);
+        } else if (res && res.queued) {
+          flashStatus('Export queued for sync ✔️', 2500);
         } else {
           console.warn('Export rows response', res);
           flashStatus('Export failed (see console)', 4000);
@@ -490,9 +491,7 @@ Notes: felt good"
       localStorage.removeItem(STORAGE_KEY);
       flashStatus("Cleared ✔️");
       try {
-        if (typeof logActionToSheet === 'function') {
-          logActionToSheet('clear', '').catch(() => {});
-        }
+        enqueueAction('clear', '').catch(() => {});
       } catch (e) {}
     });
 
@@ -600,6 +599,93 @@ Notes: felt good"
       }
     }
 
+    // --- Offline queue & sync helpers ---
+    const ACTION_QUEUE_KEY = 'gym-log-queue';
+    const syncStatusEl = document.getElementById('syncStatus');
+
+    function updateSyncStatus() {
+      try {
+        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+        const pending = q.length || 0;
+        if (!navigator.onLine) {
+          syncStatusEl.textContent = `⚠️ Offline — ${pending} pending action(s)`;
+        } else if (pending > 0) {
+          syncStatusEl.textContent = `🔁 ${pending} pending action(s) — syncing...`;
+        } else {
+          syncStatusEl.textContent = `✅ Online — all synced`;
+        }
+      } catch (e) {
+        syncStatusEl.textContent = navigator.onLine ? '✅ Online' : '⚠️ Offline';
+      }
+    }
+
+    async function enqueueAction(action, details = '') {
+      const item = { action, details, ts: new Date().toISOString() };
+      // Try to send immediately when online
+      if (navigator.onLine) {
+        try {
+          const res = await logActionToSheet(action, details);
+          if (res && res.ok) {
+            updateSyncStatus();
+            return { ok: true, sent: true, res };
+          }
+        } catch (e) {
+          // fall through to queueing
+        }
+      }
+      // queue locally
+      try {
+        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+        q.push(item);
+        localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q));
+        updateSyncStatus();
+        return { ok: false, queued: true };
+      } catch (e) {
+        console.warn('Queue error', e);
+        return { ok: false, error: String(e) };
+      }
+    }
+
+    async function flushQueue() {
+      try {
+        const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
+        if (!q || q.length === 0) return updateSyncStatus();
+        updateSyncStatus();
+        const remaining = [];
+        for (const item of q) {
+          try {
+            const res = await logActionToSheet(item.action, item.details);
+            if (!(res && res.ok)) {
+              remaining.push(item);
+            }
+          } catch (e) {
+            remaining.push(item);
+          }
+        }
+        localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(remaining));
+        updateSyncStatus();
+        return { ok: true, remaining: remaining.length };
+      } catch (e) {
+        console.warn('Flush queue error', e);
+        updateSyncStatus();
+        return { ok: false, error: String(e) };
+      }
+    }
+
+    // Attempt to flush when connection returns
+    window.addEventListener('online', () => {
+      updateSyncStatus();
+      setTimeout(flushQueue, 800);
+    });
+    window.addEventListener('offline', updateSyncStatus);
+    // Try flushing shortly after load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        updateSyncStatus();
+        flushQueue();
+      }, 1200);
+    });
+
     window.addEventListener('load', () => {
       // Give the GSI script a moment and init
       setTimeout(initGsiClient, 600);
@@ -651,9 +737,7 @@ Notes: felt good"
       const payload = await res.json();
       flashStatus('Backup uploaded to Drive ✔️', 2500);
       try {
-        if (typeof logActionToSheet === 'function') {
-          logActionToSheet('backup_drive_done', JSON.stringify(payload)).catch(() => {});
-        }
+        enqueueAction('backup_drive_done', JSON.stringify(payload)).catch(() => {});
       } catch (e) {}
       return payload;
     }
@@ -699,9 +783,7 @@ Notes: felt good"
       URL.revokeObjectURL(url);
       flashStatus('Exported .txt ✔️', 1800);
       try {
-        if (typeof logActionToSheet === 'function') {
-          logActionToSheet('export', JSON.stringify({ filename })).catch(() => {});
-        }
+        enqueueAction('export', JSON.stringify({ filename })).catch(() => {});
       } catch (e) {}
     }
 
@@ -713,9 +795,7 @@ Notes: felt good"
       localStorage.setItem(STORAGE_KEY, txt);
       flashStatus('Imported .txt ✔️', 1800);
       try {
-        if (typeof logActionToSheet === 'function') {
-          logActionToSheet('import', JSON.stringify({ name: f.name, size: f.size })).catch(() => {});
-        }
+        enqueueAction('import', JSON.stringify({ name: f.name, size: f.size })).catch(() => {});
       } catch (e) {}
       fileInput.value = '';
     });
@@ -761,9 +841,7 @@ Notes: felt good"
             localStorage.setItem(STORAGE_KEY, content);
             flashStatus('Restored from Drive ✔️', 2000);
             try {
-              if (typeof logActionToSheet === 'function') {
-                logActionToSheet('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
-              }
+              enqueueAction('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
             } catch (e) {}
           }
         }, 1200);
@@ -779,9 +857,7 @@ Notes: felt good"
         localStorage.setItem(STORAGE_KEY, content);
         flashStatus('Restored from Drive ✔️', 2000);
         try {
-          if (typeof logActionToSheet === 'function') {
-            logActionToSheet('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
-          }
+          enqueueAction('restore_drive', JSON.stringify({ id: files[0].id, name: files[0].name })).catch(() => {});
         } catch (e) {}
       }
     });
