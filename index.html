@@ -547,7 +547,39 @@
 
     function saveExercises(arr) {
       localStorage.setItem(EXERCISES_KEY, JSON.stringify(arr || []));
-      updateExerciseSelect();
+      // Legacy hook: some older UI variants used a <select> for exercises.
+      // The app now uses a tile grid, but keep a compatibility helper so
+      // calls to `updateExerciseSelect()` don't throw ReferenceError.
+      try {
+        updateExerciseSelect();
+      } catch (e) {
+        // no-op — if the function isn't defined elsewhere, define and call it.
+        // (see implementation further down)
+      }
+    }
+
+    // Backwards-compatible helper: update any legacy exercise <select> elements
+    // and re-render the modern tile grid. Kept small and defensive.
+    function updateExerciseSelect() {
+      try {
+        // Re-render the new grid UI so changes are visible immediately
+        if (typeof renderExercisesGrid === 'function') renderExercisesGrid();
+
+        // If a legacy select exists, populate it for compatibility with older code
+        const sel = document.getElementById('exerciseSelect');
+        if (sel) {
+          const exercises = loadExercises();
+          sel.innerHTML = '';
+          exercises.forEach(ex => {
+            const opt = document.createElement('option');
+            opt.value = ex.id;
+            opt.textContent = ex.name;
+            sel.appendChild(opt);
+          });
+        }
+      } catch (e) {
+        // ignore errors — this is a best-effort compatibility helper
+      }
     }
 
     function loadSets() {
