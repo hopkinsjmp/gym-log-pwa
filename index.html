@@ -743,10 +743,10 @@
         editExerciseBtn.onclick = async () => {
           const newName = prompt('Exercise name:', exercise.name || '');
           if (!newName) return;
-          let newMod = prompt('Modality (weighted / bodyweight / duration):', exercise.modality || 'weighted');
-          if (!newMod) newMod = 'weighted';
-          newMod = newMod.trim().toLowerCase();
-          if (!['weighted','bodyweight','duration'].includes(newMod)) newMod = 'weighted';
+          const newMod = await showModalityDialog(exercise.modality || 'weighted');
+          if (!newMod) return;
+          // Guard: only accept canonical modalities
+          if (!['weighted','bodyweight','duration'].includes(newMod)) return flashStatus('Invalid modality', 1400);
           exercise.name = newName.trim();
           exercise.modality = newMod;
           const exercises = loadExercises();
@@ -945,11 +945,9 @@
     async function addExercise() {
       const name = prompt('Exercise name (e.g. Bench Press)');
       if (!name) return flashStatus('Cancelled', 1200);
-      // Prompt for modality
-      let modality = prompt('Modality (weighted / bodyweight / duration). Default: weighted', 'weighted');
-      if (!modality) modality = 'weighted';
-      modality = modality.trim().toLowerCase();
-      if (!['weighted','bodyweight','duration'].includes(modality)) modality = 'weighted';
+      // Prompt for modality using a strict dropdown dialog (weighted/bodyweight/duration)
+      const modality = await showModalityDialog('weighted');
+      if (!modality) return flashStatus('Cancelled', 1200);
 
       const exercises = loadExercises();
       const ex = { id: generateId(), name: name.trim(), notes: '', modality };
@@ -958,6 +956,36 @@
       flashStatus('Exercise added ✔️');
       renderExercisesGrid();
       try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) { console.warn('upsert_exercise failed', e); }
+    }
+
+    // Show a minimal modal with a select for modality. Returns the selected modality string or null if cancelled.
+    function showModalityDialog(defaultValue) {
+      return new Promise((resolve) => {
+        const allowed = ['weighted','bodyweight','duration'];
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed'; overlay.style.inset = '0'; overlay.style.background = 'rgba(0,0,0,0.5)'; overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center'; overlay.style.zIndex = '10000';
+        const box = document.createElement('div');
+        box.style.background = '#0b1220'; box.style.padding = '16px'; box.style.borderRadius = '8px'; box.style.width = '320px'; box.style.color = '#f9fafb';
+        box.innerHTML = `<div style="font-weight:700; margin-bottom:8px;">Select modality</div>`;
+        const select = document.createElement('select');
+        select.style.width = '100%'; select.style.padding = '8px'; select.style.marginBottom = '8px'; select.style.borderRadius = '6px'; select.style.background = 'rgba(255,255,255,0.04)'; select.style.color = '#f9fafb';
+        allowed.forEach(v => { const o = document.createElement('option'); o.value = v; o.text = v; select.appendChild(o); });
+        select.value = allowed.includes(defaultValue) ? defaultValue : 'weighted';
+        const err = document.createElement('div'); err.style.color = '#fecaca'; err.style.fontSize = '13px'; err.style.minHeight = '18px'; err.style.marginBottom = '8px';
+        const btnRow = document.createElement('div'); btnRow.style.display = 'flex'; btnRow.style.justifyContent = 'flex-end'; btnRow.style.gap = '8px';
+        const cancelBtn = document.createElement('button'); cancelBtn.className = 'secondary'; cancelBtn.textContent = 'Cancel';
+        const okBtn = document.createElement('button'); okBtn.textContent = 'OK';
+        btnRow.appendChild(cancelBtn); btnRow.appendChild(okBtn);
+        box.appendChild(select); box.appendChild(err); box.appendChild(btnRow);
+        overlay.appendChild(box); document.body.appendChild(overlay);
+
+        cancelBtn.onclick = () => { overlay.remove(); resolve(null); };
+        okBtn.onclick = () => {
+          const val = (select.value || '').trim().toLowerCase();
+          if (!allowed.includes(val)) { err.textContent = 'Invalid modality selected'; return; }
+          overlay.remove(); resolve(val);
+        };
+      });
     }
 
   // --- Structured data helpers (exercises + sets store) ---
