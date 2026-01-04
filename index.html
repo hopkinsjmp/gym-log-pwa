@@ -283,6 +283,28 @@
       border-radius: 12px;
       cursor: pointer;
       transition: all 0.2s;
+      position: relative; /* allow badges to be positioned inside */
+      overflow: visible;
+    }
+
+    /* Unsynced count badge */
+    .unsynced-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #ef4444; /* red */
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      line-height: 1;
     }
 
     .exercise-tile:hover {
@@ -439,10 +461,26 @@
       grid.innerHTML = '';
 
       // Add tile for each exercise
+      const allSets = loadSets();
+      const loggedIds = new Set(loadLoggedSetIds());
       exercises.forEach(ex => {
         const tile = document.createElement('div');
         tile.className = 'exercise-tile';
         tile.innerHTML = `<div class="exercise-tile-name">${ex.name}</div>`;
+
+        // compute unsynced sets for this exercise (sets present locally but not in logged ids)
+        try {
+          const unsynced = allSets.filter(s => String(s.exerciseId) === String(ex.id) && s.id && !loggedIds.has(s.id));
+          if (unsynced && unsynced.length > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'unsynced-badge';
+            badge.textContent = String(unsynced.length);
+            tile.appendChild(badge);
+          }
+        } catch (e) {
+          // ignore
+        }
+
         tile.addEventListener('click', () => openExerciseModal(ex));
         grid.appendChild(tile);
       });
@@ -829,11 +867,7 @@
     const href = window.location.href;
     pwaInfo.innerHTML = isStandalone
       ? "✅ Running as an installed app (standalone)."
-      : `ℹ️ Not installed yet.<br/>
-         In Chrome: menu ⋮ → <b>Install app</b> (or <b>Add to Home screen</b>).<br/>
-         If you don't see it, confirm these load with 200 OK:<br/>
-         • <code>manifest.json</code> • <code>sw.js</code> • icons.<br/>
-         <span class="mono">URL:</span> <code>${href}</code>`;
+      : `ℹ️ Not installed. To add to your home screen or install, open your browser menu and choose "Install app" / "Add to Home screen".<br/><span class="mono">URL:</span> <code>${href}</code>`;
   </script>
 
   <!-- Google Identity Services -->
