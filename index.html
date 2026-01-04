@@ -337,6 +337,13 @@
       line-height: 1.3;
     }
 
+    .exercise-next {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: 0.75;
+      font-weight: 500;
+    }
+
     .add-exercise-tile {
       background: rgba(124, 58, 237, 0.1);
       border: 1px dashed rgba(124, 58, 237, 0.3);
@@ -408,7 +415,7 @@
   <p class="hint">Tap an exercise to see history and log a new set.</p>
 
   <div class="status" id="status" style="margin-top:8px;"></div>
-  <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
+  <!-- removed legacy "Synced" indicator -->
 
   <!-- Training Plan Summary (collapsible) -->
   <div id="planSummary" style="display:none; margin:12px 0; padding:12px; background:rgba(124, 58, 237, 0.08); border:1px solid rgba(124, 58, 237, 0.3); border-radius:10px;">
@@ -504,6 +511,21 @@
       flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);
     }
 
+      // Format a nextDate string into: "Tue · 12 Mar" using local timezone
+      function formatNextDate(dateStr) {
+        if (!dateStr) return 'Next: —';
+        try {
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return 'Next: —';
+          const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+          const day = d.toLocaleDateString(undefined, { day: '2-digit' });
+          const month = d.toLocaleDateString(undefined, { month: 'short' });
+          return `Next: ${weekday} · ${day} ${month}`;
+        } catch (e) {
+          return 'Next: —';
+        }
+      }
+
     // Render exercise tiles grid
     function renderExercisesGrid() {
       const grid = document.getElementById('exercisesGrid');
@@ -524,9 +546,11 @@
       const allSets = loadSets();
       const loggedIds = new Set(loadLoggedSetIds());
       exercises.forEach(ex => {
-        const tile = document.createElement('div');
-        tile.className = 'exercise-tile';
-        tile.innerHTML = `<div class="exercise-tile-name">${ex.name}</div>`;
+          const tile = document.createElement('div');
+          tile.className = 'exercise-tile';
+          // Show name and next planned date (formatted client-side)
+          const nextText = ex.plan && ex.plan.nextDate ? formatNextDate(ex.plan.nextDate) : 'Next: —';
+          tile.innerHTML = `<div><div class="exercise-tile-name">${ex.name}</div><div class="exercise-next">${nextText}</div></div>`;
 
         // compute unsynced sets for this exercise (sets present locally but not in logged ids)
         try {
@@ -1234,12 +1258,45 @@
   function signOutGsi() {
     try {
       localStorage.removeItem(GSI_ID_TOKEN_KEY);
+      // Clear all UI state and user-scoped local data without reloading
+      clearAppState();
       updateGsiStatusUI(null);
       if (window.google && google.accounts && google.accounts.id && google.accounts.id.disableAutoSelect) {
         google.accounts.id.disableAutoSelect();
       }
       flashStatus('Signed out', 1200);
     } catch (e) {}
+  }
+
+  // Clear user-visible and persisted app state (do not reload page)
+  function clearAppState() {
+    try {
+      // Remove user-specific local stores
+      localStorage.removeItem(EXERCISES_KEY);
+      localStorage.removeItem(SETS_KEY);
+      localStorage.removeItem(ACTION_QUEUE_KEY);
+      localStorage.removeItem(LOGGED_SET_IDS_KEY);
+      try { localStorage.removeItem(SHEETS_LOCAL_TOKEN_KEY); } catch (e) {}
+
+      // Clear UI: hide plan summary and remove exercise tiles
+      const grid = document.getElementById('exercisesGrid');
+      if (grid) grid.innerHTML = '';
+      const summary = document.getElementById('planSummary');
+      if (summary) summary.style.display = 'none';
+      const planContent = document.getElementById('planSummaryContent');
+      if (planContent) planContent.textContent = '';
+      const status = document.getElementById('status');
+      if (status) status.textContent = '';
+
+      // Ensure any open modals are closed
+      const modal = document.getElementById('exerciseModal');
+      if (modal) modal.style.display = 'none';
+
+      // Reset sync UI (if present)
+      try { updateSyncStatus(); } catch (e) {}
+    } catch (e) {
+      // no-op
+    }
   }
 
   function getGsiIdToken() {
@@ -1275,7 +1332,7 @@
       if (res && res.ok && Array.isArray(res.exercises)) {
         // Save exercises with all plan data
         saveExercises(res.exercises);
-        flashStatus('Exercises loaded', 1400);
+        // legacy "Exercises loaded" toast removed to reduce noise
         renderExercisesGrid(); // Re-render grid after loading
       }
     } catch (e) {
@@ -1463,6 +1520,7 @@
     }
 
     function updateSyncStatus() {
+      if (!syncStatusEl) return; // indicator removed from DOM; no-op when absent
       try {
         const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
         const pending = q.length || 0;
@@ -1473,12 +1531,12 @@
           syncStatusEl.textContent = `🔁 ${pending} pending`;
           syncStatusEl.style.cursor = 'pointer';
         } else {
-          // keep compact when all good
-          syncStatusEl.textContent = `✅ Synced`;
+          // no "Synced" indicator — keep quiet when all clear
+          syncStatusEl.textContent = '';
           syncStatusEl.style.cursor = 'default';
         }
       } catch (e) {
-        syncStatusEl.textContent = navigator.onLine ? '✅ Online' : '⚠️ Offline';
+        if (syncStatusEl) syncStatusEl.textContent = navigator.onLine ? '✅ Online' : '⚠️ Offline';
       }
     }
 
