@@ -410,6 +410,13 @@
   <div class="status" id="status" style="margin-top:8px;"></div>
   <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
+  <!-- Generate All Plans button -->
+  <div style="margin:12px 0;">
+    <button id="generateAllPlansBtn" style="width:100%; padding:12px; background:#7c3aed; font-size:15px;">
+      ✨ Generate AI Training Plan
+    </button>
+  </div>
+
   <!-- Exercise tiles grid -->
   <div id="exercisesGrid" class="exercises-grid"></div>
 
@@ -1684,6 +1691,58 @@
       const gsiOut = document.getElementById('gsiSignOut');
       if (gsiOut) gsiOut.addEventListener('click', signOutGsi);
     } catch (e) {}
+
+    // Wire Generate All Plans button
+    try {
+      const generateAllBtn = document.getElementById('generateAllPlansBtn');
+      if (generateAllBtn) {
+        generateAllBtn.addEventListener('click', async () => {
+          generateAllBtn.disabled = true;
+          generateAllBtn.textContent = '⏳ Analyzing your workouts...';
+          
+          try {
+            const res = await logActionToSheet('generate_all_plans', JSON.stringify({ autoSave: true }));
+            
+            if (res && res.ok && res.plans) {
+              // Update all exercises with their new plans
+              const exercises = loadExercises();
+              let updatedCount = 0;
+              
+              exercises.forEach(ex => {
+                if (res.plans[ex.id]) {
+                  ex.plan = res.plans[ex.id].plan;
+                  ex.planReasoning = res.plans[ex.id].reasoning;
+                  updatedCount++;
+                }
+              });
+              
+              if (updatedCount > 0) {
+                saveExercises(exercises);
+                renderExercisesGrid(); // Refresh tiles
+                
+                // Show global reasoning
+                const globalMsg = res.globalReasoning || `Plans generated for ${updatedCount} exercises`;
+                flashStatus(`✨ ${globalMsg}`, 4000);
+              } else {
+                flashStatus('No exercises to plan', 2000);
+              }
+            } else {
+              const errMsg = res?.error || 'Plan generation failed';
+              flashStatus(`⚠️ ${errMsg}`, 3000);
+              console.warn('generate_all_plans response:', res);
+            }
+          } catch (e) {
+            flashStatus('Error generating plans', 2500);
+            console.error('generate_all_plans error:', e);
+          }
+          
+          generateAllBtn.disabled = false;
+          generateAllBtn.textContent = '✨ Generate AI Training Plan';
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to wire generateAllPlansBtn', e);
+    }
   </script>
 </body>
 </html>
