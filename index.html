@@ -1031,6 +1031,11 @@
       if (existing) {
         const payload = parseJwt(existing);
         updateGsiStatusUI(payload);
+        // If we already had a token on load, fetch user data
+        (async () => {
+          try { await fetchAndSaveExercises(); } catch (e) {}
+          try { await fetchAndMergeRecentLogs(); } catch (e) {}
+        })();
       }
     } catch (e) {
       // ignore
@@ -1044,6 +1049,15 @@
       const payload = parseJwt(resp.credential);
       updateGsiStatusUI(payload);
       flashStatus('Signed in ✔️', 1600);
+      // After sign-in, ensure user defaults exist and load exercises + recent logs
+      (async () => {
+        try {
+          // ensure server-side defaults (idempotent)
+          await logActionToSheet('ensure_user', JSON.stringify({}));
+        } catch (e) {}
+        try { await fetchAndSaveExercises(); } catch (e) {}
+        try { await fetchAndMergeRecentLogs(); } catch (e) {}
+      })();
     } catch (e) {
       console.warn('GSI handle error', e);
     }
@@ -1078,6 +1092,60 @@
 
   function getGsiIdToken() {
     try { return localStorage.getItem(GSI_ID_TOKEN_KEY); } catch (e) { return null; }
+  }
+
+  // After sign-in / on load helpers: fetch exercises and recent logs for the signed-in user
+  async function fetchAndSaveExercises() {
+    try {
+      const res = await logActionToSheet('get_exercises', JSON.stringify({}));
+      if (res && res.ok && Array.isArray(res.exercises)) {
+        // Map server exercises to local format {id, name, notes}
+        const mapped = res.exercises.map(ex => ({ id: ex.id || ex.name || Date.now(), name: ex.name || '', notes: ex.notes || '' }));
+        saveExercises(mapped);
+        flashStatus('Exercises loaded', 1400);
+        updateExerciseSelect();
+      }
+    } catch (e) {
+      console.warn('fetchExercises failed', e);
+    }
+  }
+
+  async function fetchAndMergeRecentLogs(limit = 50) {
+    try {
+      const res = await logActionToSheet('fetch_recent_logs', JSON.stringify({ limit }));
+      if (res && res.ok && Array.isArray(res.rows)) {
+        const rows = res.rows;
+        // Convert rows to local set objects and merge into local saved sets without duplicating setId
+        const existing = loadSets();
+        const existingIds = new Set(existing.map(s => s.id));
+        const toAdd = [];
+        for (const r of rows) {
+          const sid = r.setId || generateId();
+          if (existingIds.has(sid)) continue;
+          const ts = (r.date && new Date(r.date).toISOString()) || new Date().toISOString();
+          const setObj = {
+            id: sid,
+            exerciseId: r.exerciseId || '',
+            ts: ts,
+            reps: r.reps !== undefined ? r.reps : null,
+            weight: r.weight || '',
+            duration_s: r.duration_s !== undefined ? r.duration_s : null,
+            distance_km: r.distance_km !== undefined ? r.distance_km : null,
+            notes: r.notes || ''
+          };
+          toAdd.push(setObj);
+          existingIds.add(sid);
+        }
+        if (toAdd.length) {
+          // prepend so recent items appear first locally
+          const merged = toAdd.concat(existing);
+          saveSets(merged);
+          flashStatus(`${toAdd.length} recent log(s) loaded`, 1800);
+        }
+      }
+    } catch (e) {
+      console.warn('fetchRecentLogs failed', e);
+    }
   }
 
     async function logActionToSheet(action, details = '') {
