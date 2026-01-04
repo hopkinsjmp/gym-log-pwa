@@ -254,23 +254,124 @@
       background: rgba(124, 58, 237, 0.25);
       border-color: rgba(124, 58, 237, 0.6);
     }
+
+    /* Exercise tiles grid */
+    .exercises-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .exercises-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .exercise-tile {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 16px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .exercise-tile:hover {
+      background: rgba(124, 58, 237, 0.15);
+      border-color: rgba(124, 58, 237, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .exercise-tile-name {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .add-exercise-tile {
+      background: rgba(124, 58, 237, 0.1);
+      border: 1px dashed rgba(124, 58, 237, 0.3);
+    }
+
+    .add-exercise-tile:hover {
+      background: rgba(124, 58, 237, 0.2);
+      border-color: rgba(124, 58, 237, 0.5);
+    }
+
+    /* Exercise detail modal */
+    .exercise-history {
+      margin: 12px 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .history-item {
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .history-date {
+      opacity: 0.7;
+      font-size: 12px;
+    }
+
+    .history-details {
+      font-weight: 600;
+    }
+
+    .quick-add-form {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .form-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .form-row input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #f9fafb;
+      font-size: 14px;
+    }
+
+    .form-row input:focus {
+      outline: none;
+      border-color: rgba(124, 58, 237, 0.6);
+    }
   </style>
 </head>
 
 <body>
   <h1>🏋️ Gym Log</h1>
-  <p class="hint">Quick logging for strength training and cardio. All workouts sync to Google Sheets.</p>
-
-  <div class="row">
-    <button id="logSet" type="button">Log Set</button>
-    <button id="logRun" type="button">Log Run</button>
-    <button id="addExercise" class="secondary" type="button">Add Exercise</button>
-  </div>
+  <p class="hint">Tap an exercise to see history and log a new set.</p>
 
   <div class="status" id="status" style="margin-top:8px;"></div>
   <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
-  <!-- Pending actions queue panel -->
+  <!-- Exercise tiles grid -->
+  <div id="exercisesGrid" class="exercises-grid"></div>
+
+  <!-- Pending actions queue panel (collapsed by default) -->
   <div id="queuePanel" style="margin-top:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02);">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
       <div style="font-weight:700">Pending sync</div>
@@ -292,55 +393,143 @@
     <button id="gsiSignOut" class="secondary" style="display:none;">Sign out</button>
   </div>
 
-  <!-- Add-Set modal -->
-  <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999; overflow-y:auto; padding:20px 0;">
-    <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb; margin:auto;">
-      <h3 style="margin:0 0 8px; font-size:1.1rem;">Add Set(s)</h3>
-      <div style="display:flex; gap:8px; flex-direction:column;">
-        <label class="mono" style="font-size:0.9rem; opacity:0.9">Exercise</label>
-        <select id="modalExerciseSelect" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); color:#f9fafb; border:1px solid rgba(255,255,255,0.06)">
-          <option value="__new__">-- New exercise --</option>
-        </select>
-        <input id="modalExerciseNew" placeholder="If new: name" style="padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06); display:none;" />
+  <!-- Exercise detail modal -->
+  <div id="exerciseModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999; overflow-y:auto; padding:20px 0;">
+    <div style="background:#0b1220; padding:20px; border-radius:12px; width:92%; max-width:500px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb; margin:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 id="modalExerciseName" style="margin:0; font-size:1.2rem;">Exercise</h3>
+        <button id="modalClose" class="secondary" style="padding:6px 12px; font-size:14px;">✕</button>
+      </div>
+      
+      <!-- Recent history -->
+      <div class="exercise-history" id="exerciseHistory">
+        <div style="opacity:0.7; font-size:14px;">Loading history...</div>
+      </div>
 
-        <!-- Individual sets container -->
-        <div id="setsContainer" style="max-height:500px; overflow-y:auto; margin-top:12px;">
-          <!-- Sets will be dynamically added here -->
+      <!-- Quick add form -->
+      <div class="quick-add-form">
+        <div style="font-weight:600; margin-bottom:8px; font-size:14px;">Log New Set</div>
+        <div class="form-row">
+          <input id="quickWeight" type="number" step="0.5" placeholder="Weight (kg)" />
+          <input id="quickReps" type="number" placeholder="Reps" />
         </div>
-
-        <!-- Cardio fields (hidden for strength mode) -->
-        <div id="modalCardioFields" style="display:none;">
-          <div style="display:flex; gap:8px;">
-            <div style="flex:1">
-              <label class="mono" style="font-size:0.9rem; opacity:0.9">Duration (s)</label>
-              <input id="modalDuration" type="number" min="0" placeholder="seconds" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); color:#f9fafb; border:1px solid rgba(255,255,255,0.06);" />
-            </div>
-            <div style="width:120px">
-              <label class="mono" style="font-size:0.9rem; opacity:0.9">Distance (km)</label>
-              <input id="modalDistance" type="number" step="0.01" placeholder="km" style="width:100%; padding:8px; border-radius:8px;" />
-            </div>
-          </div>
-        </div>
-
-        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
-          <button id="modalCancel" class="secondary" type="button">Cancel</button>
-          <button id="modalAdd" type="button">Add</button>
-        </div>
+        <button id="quickAddSet" type="button" style="width:100%; padding:10px;">Add Set</button>
       </div>
     </div>
   </div>
 
+  <!-- Old modals removed -->
+  
   <script>
     const statusEl = document.getElementById("status");
     const pwaInfo = document.getElementById("pwaInfo");
-    const logSetBtn = document.getElementById('logSet');
-    const logRunBtn = document.getElementById('logRun');
-    const addExerciseBtn = document.getElementById('addExercise');
 
     function flashStatus(msg, ms = 1500) {
       statusEl.textContent = msg;
       window.clearTimeout(flashStatus._t);
       flashStatus._t = window.setTimeout(() => (statusEl.textContent = ""), ms);
+    }
+
+    // Render exercise tiles grid
+    function renderExercisesGrid() {
+      const grid = document.getElementById('exercisesGrid');
+      if (!grid) return;
+      const exercises = loadExercises();
+      grid.innerHTML = '';
+
+      // Add tile for each exercise
+      exercises.forEach(ex => {
+        const tile = document.createElement('div');
+        tile.className = 'exercise-tile';
+        tile.innerHTML = `<div class="exercise-tile-name">${ex.name}</div>`;
+        tile.addEventListener('click', () => openExerciseModal(ex));
+        grid.appendChild(tile);
+      });
+
+      // Add "+" tile for new exercise
+      const addTile = document.createElement('div');
+      addTile.className = 'exercise-tile add-exercise-tile';
+      addTile.innerHTML = `<div class="exercise-tile-name">+ Add Exercise</div>`;
+      addTile.addEventListener('click', addExercise);
+      grid.appendChild(addTile);
+    }
+
+    // Open modal showing history + quick-add for an exercise
+    function openExerciseModal(exercise) {
+      const modal = document.getElementById('exerciseModal');
+      const nameEl = document.getElementById('modalExerciseName');
+      const historyEl = document.getElementById('exerciseHistory');
+      const weightInput = document.getElementById('quickWeight');
+      const repsInput = document.getElementById('quickReps');
+      const addBtn = document.getElementById('quickAddSet');
+      const closeBtn = document.getElementById('modalClose');
+
+      nameEl.textContent = exercise.name;
+      historyEl.innerHTML = '<div style="opacity:0.7; font-size:14px;">Loading history...</div>';
+      weightInput.value = '';
+      repsInput.value = '';
+      modal.style.display = 'flex';
+
+      // Load recent sets for this exercise
+      const sets = loadSets().filter(s => String(s.exerciseId) === String(exercise.id)).slice(-15).reverse();
+      if (sets.length === 0) {
+        historyEl.innerHTML = '<div style="opacity:0.5; font-size:14px;">No history yet</div>';
+      } else {
+        historyEl.innerHTML = '';
+        sets.forEach(s => {
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          const date = s.ts ? new Date(s.ts).toLocaleDateString() : '';
+          const details = s.reps !== undefined && s.reps !== null
+            ? `${s.reps} reps @ ${s.weight || '0kg'}`
+            : (s.duration_s ? `${s.duration_s}s` : '');
+          item.innerHTML = `<div class="history-date">${date}</div><div class="history-details">${details}</div>`;
+          historyEl.appendChild(item);
+        });
+      }
+
+      // Quick-add handler
+      addBtn.onclick = async () => {
+        const weight = weightInput.value ? parseFloat(weightInput.value) : 0;
+        const reps = repsInput.value ? parseInt(repsInput.value) : 0;
+        if (reps <= 0) return flashStatus('Enter reps', 1200);
+
+        const sid = generateId();
+        const ts = new Date().toISOString();
+        const setObj = { id: sid, exerciseId: exercise.id, ts, reps, weight: weight > 0 ? `${weight}kg` : '' };
+        
+        const sets = loadSets();
+        sets.push(setObj);
+        saveSets(sets);
+
+        flashStatus('Set added ✔️', 1200);
+        weightInput.value = '';
+        repsInput.value = '';
+
+        // Sync to server
+        try {
+          await enqueueAction('log_set', JSON.stringify({ exerciseId: exercise.id, exercise: exercise.name, sets: [setObj], type: 'strength' }));
+        } catch (e) { console.warn('log_set failed', e); }
+
+        // Refresh history
+        openExerciseModal(exercise);
+      };
+
+      closeBtn.onclick = () => {
+        modal.style.display = 'none';
+      };
+    }
+
+    async function addExercise() {
+      const name = prompt('Exercise name (e.g. Bench Press)');
+      if (!name) return flashStatus('Cancelled', 1200);
+      const exercises = loadExercises();
+      const ex = { id: generateId(), name: name.trim(), notes: '' };
+      exercises.push(ex);
+      saveExercises(exercises);
+      flashStatus('Exercise added ✔️');
+      renderExercisesGrid();
+      try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) { console.warn('upsert_exercise failed', e); }
     }
 
   // --- Structured data helpers (exercises + sets store) ---
@@ -373,22 +562,7 @@
       localStorage.setItem(SETS_KEY, JSON.stringify(arr || []));
     }
 
-    function updateExerciseSelect() {
-      const select = document.getElementById('modalExerciseSelect');
-      const exercises = loadExercises();
-      // keep the default new option
-      const current = select && select.value;
-      if (!select) return;
-      select.innerHTML = '<option value="__new__">-- New exercise --</option>';
-      for (const ex of exercises) {
-        const opt = document.createElement('option');
-        opt.value = String(ex.id);
-        opt.textContent = ex.name;
-        select.appendChild(opt);
-      }
-      // try to reselect previous value
-      if (current) select.value = current;
-    }
+    // (updateExerciseSelect removed - no longer using select dropdowns)
 
     function loadStructuredData() {
       // Keep backward compatibility: if STORAGE_KEY contains a sessions-based v2 payload,
@@ -430,325 +604,7 @@
       try { await enqueueAction('new_session', JSON.stringify({ id: session.id, date: session.date })); } catch (e) {}
     }
 
-    async function addExercise() {
-      // Add exercise to global exercises list so it's available across sessions/devices
-      const name = prompt('Exercise name (e.g. Bench Press)');
-      if (!name) return flashStatus('Cancelled', 1200);
-      const exercises = loadExercises();
-      const ex = { id: Date.now(), name: name.trim(), notes: '' };
-      exercises.push(ex);
-      saveExercises(exercises);
-      flashStatus('Exercise added');
-      try { await enqueueAction('upsert_exercise', JSON.stringify(ex)); } catch (e) {}
-    }
-
-    async function addSet(mode = 'strength') {
-      // Open modal UI for adding sets with iOS-style pickers
-
-      const select = document.getElementById('modalExerciseSelect');
-      const newInput = document.getElementById('modalExerciseNew');
-      const setsContainer = document.getElementById('setsContainer');
-      const cardioFields = document.getElementById('modalCardioFields');
-      const durationInput = document.getElementById('modalDuration');
-      const distanceInput = document.getElementById('modalDistance');
-      const modal = document.getElementById('addSetModal');
-
-      let numberOfSets = 3;
-      const setData = []; // Will store {weight: number, reps: number} for each set
-      const weightUnit = 'kg'; // Always use kg
-
-      // Create iOS-style picker wheel
-      function createPicker(min, max, defaultValue) {
-        const wheel = document.createElement('div');
-        wheel.className = 'picker-wheel';
-
-        const scroll = document.createElement('div');
-        scroll.className = 'picker-scroll';
-        
-        const items = [];
-        for (let i = min; i <= max; i++) {
-          const item = document.createElement('div');
-          item.className = 'picker-item';
-          item.textContent = i;
-          item.dataset.value = i;
-          scroll.appendChild(item);
-          items.push(item);
-        }
-        
-        wheel.appendChild(scroll);
-
-        let currentValue = defaultValue;
-        let selectedIndex = items.findIndex(item => Number(item.dataset.value) === defaultValue);
-        if (selectedIndex === -1) selectedIndex = 0;
-        
-        function updatePosition() {
-          const offset = selectedIndex * -32;
-          scroll.style.transform = `translateY(${offset}px)`;
-          items.forEach((item, idx) => {
-            item.classList.toggle('selected', idx === selectedIndex);
-          });
-        }
-        
-        updatePosition();
-
-        let touchStartY = 0;
-        let scrollStartY = 0;
-        let isDragging = false;
-
-        function onStart(y) {
-          isDragging = true;
-          touchStartY = y;
-          scrollStartY = selectedIndex * 32;
-          scroll.style.transition = 'none';
-        }
-
-        function onMove(y) {
-          if (!isDragging) return;
-          const deltaY = touchStartY - y;
-          const newScrollY = scrollStartY + deltaY;
-          const newIndex = Math.round(newScrollY / 32);
-          const clampedIndex = Math.max(0, Math.min(items.length - 1, newIndex));
-          selectedIndex = clampedIndex;
-          scroll.style.transform = `translateY(${-clampedIndex * 32}px)`;
-          items.forEach((item, idx) => {
-            item.classList.toggle('selected', idx === clampedIndex);
-          });
-        }
-
-        function onEnd() {
-          if (!isDragging) return;
-          isDragging = false;
-          scroll.style.transition = 'transform 0.15s ease-out';
-          updatePosition();
-          currentValue = Number(items[selectedIndex].dataset.value);
-        }
-
-        wheel.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          onStart(e.clientY);
-        });
-        
-        wheel.addEventListener('mousemove', (e) => {
-          e.preventDefault();
-          onMove(e.clientY);
-        });
-        
-        wheel.addEventListener('mouseup', () => onEnd());
-        wheel.addEventListener('mouseleave', () => onEnd());
-
-        wheel.addEventListener('touchstart', (e) => {
-          onStart(e.touches[0].clientY);
-        });
-        
-        wheel.addEventListener('touchmove', (e) => {
-          e.preventDefault();
-          onMove(e.touches[0].clientY);
-        });
-        
-        wheel.addEventListener('touchend', () => onEnd());
-
-        return {
-          element: wheel,
-          getValue: () => currentValue
-        };
-      }
-
-      // Render individual sets with dual pickers (weight + reps)
-      function renderSets() {
-        setsContainer.innerHTML = '';
-        setData.length = numberOfSets;
-        
-        for (let i = 0; i < numberOfSets; i++) {
-          if (!setData[i]) setData[i] = { weight: 20, reps: 8 };
-          
-          const setRow = document.createElement('div');
-          setRow.className = 'set-row';
-          
-          const setNumber = document.createElement('div');
-          setNumber.className = 'set-number';
-          setNumber.textContent = `Set ${i + 1}`;
-          setRow.appendChild(setNumber);
-          
-          // Remove button (only show if more than 1 set)
-          if (numberOfSets > 1) {
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-set-btn';
-            removeBtn.textContent = '−';
-            removeBtn.onclick = (e) => {
-              e.preventDefault();
-              removeSet(i);
-            };
-            setRow.appendChild(removeBtn);
-          }
-          
-          const pickerContainer = document.createElement('div');
-          pickerContainer.className = 'picker-container';
-          
-          // Selection bar (shared between both pickers)
-          const selection = document.createElement('div');
-          selection.className = 'picker-selection';
-          pickerContainer.appendChild(selection);
-          
-          // Weight picker
-          const weightPicker = createPicker(0, 200, setData[i].weight);
-          const weightLabel = document.createElement('div');
-          weightLabel.className = 'picker-label';
-          weightLabel.textContent = weightUnit;
-          weightPicker.element.appendChild(weightLabel);
-          pickerContainer.appendChild(weightPicker.element);
-          
-          // Reps picker
-          const repsPicker = createPicker(0, 50, setData[i].reps);
-          const repsLabel = document.createElement('div');
-          repsLabel.className = 'picker-label';
-          repsLabel.textContent = 'reps';
-          repsPicker.element.appendChild(repsLabel);
-          pickerContainer.appendChild(repsPicker.element);
-          
-          setRow.appendChild(pickerContainer);
-          setsContainer.appendChild(setRow);
-          
-          // Store references to pickers
-          setData[i].getWeightPicker = () => weightPicker;
-          setData[i].getRepsPicker = () => repsPicker;
-        }
-        
-        // Add "+" button at the bottom
-        if (numberOfSets < 10) {
-          const addBtn = document.createElement('button');
-          addBtn.className = 'add-set-btn';
-          addBtn.textContent = '+';
-          addBtn.onclick = (e) => {
-            e.preventDefault();
-            addSetRow();
-          };
-          setsContainer.appendChild(addBtn);
-        }
-      }
-      
-      function removeSet(index) {
-        if (numberOfSets <= 1) return;
-        setData.splice(index, 1);
-        numberOfSets--;
-        renderSets();
-      }
-      
-      function addSetRow() {
-        if (numberOfSets >= 10) return;
-        numberOfSets++;
-        renderSets();
-      }
-
-      // populate exercise list from global exercises store
-      updateExerciseSelect();
-      const exercises = loadExercises();
-      if (exercises && exercises.length) {
-        select.value = String(exercises[exercises.length - 1].id);
-        newInput.style.display = 'none';
-      } else {
-        select.value = '__new__';
-        newInput.style.display = '';
-      }
-
-      // preset values
-      durationInput.value = '';
-      distanceInput.value = '';
-
-      // show modal
-      const header = modal.querySelector('h3');
-      header.textContent = mode === 'cardio' ? 'Log Run' : 'Log Set(s)';
-      modal.style.display = 'flex';
-      
-      // adjust fields based on mode
-      if (mode === 'cardio') {
-        setsContainer.style.display = 'none';
-        cardioFields.style.display = '';
-        numberOfSets = 1;
-      } else {
-        setsContainer.style.display = '';
-        cardioFields.style.display = 'none';
-        renderSets();
-      }
-
-      // handlers
-      function onSelectChange() {
-        if (select.value === '__new__') newInput.style.display = '';
-        else newInput.style.display = 'none';
-      }
-
-      function closeModal() {
-        modal.style.display = 'none';
-        select.removeEventListener('change', onSelectChange);
-        cancelBtn.removeEventListener('click', onCancel);
-        addBtn.removeEventListener('click', onAdd);
-      }
-
-      function onCancel() {
-        closeModal();
-        flashStatus('Cancelled', 900);
-      }
-
-      async function onAdd() {
-  const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
-  const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
-        
-        let exObj = null;
-        if (select.value === '__new__') {
-          const name = newInput.value && newInput.value.trim();
-          if (!name) return flashStatus('Enter exercise name', 1500);
-          exObj = { id: Date.now(), name: name, notes: '' };
-          const exercises = loadExercises();
-          exercises.push(exObj);
-          saveExercises(exercises);
-          // Sync the new exercise to the server (upsert)
-          try { await enqueueAction('upsert_exercise', JSON.stringify(exObj)); } catch (e) { console.warn('upsert_exercise failed', e); }
-        } else {
-          const exercises = loadExercises();
-          exObj = exercises.find(e => String(e.id) === String(select.value));
-          if (!exObj) {
-            flashStatus('Exercise not found', 1500);
-            return;
-          }
-        }
-
-        // Add sets with individual weight and rep values
-        const sets = loadSets();
-        const createdSets = [];
-        
-        for (let i = 0; i < numberOfSets; i++) {
-          const ts = new Date(Date.now() + i * 1000).toISOString();
-          const sid = generateId();
-          let setObj;
-          
-          if (mode === 'cardio') {
-            setObj = { id: sid, exerciseId: exObj.id, ts, duration_s: durationVal, distance_km: distanceVal };
-          } else {
-            const weightVal = setData[i].getWeightPicker().getValue();
-            const repsVal = setData[i].getRepsPicker().getValue();
-            const weightStr = weightVal > 0 ? `${weightVal}${weightUnit}` : '';
-            setObj = { id: sid, exerciseId: exObj.id, ts, reps: repsVal, weight: weightStr };
-          }
-          
-          sets.push(setObj);
-          createdSets.push(setObj);
-        }
-        
-        saveSets(sets);
-        closeModal();
-        flashStatus(`${numberOfSets} set(s) added to ${exObj.name}`);
-        
-        try {
-          await enqueueAction('log_set', JSON.stringify({ exerciseId: exObj.id, exercise: exObj.name, sets: createdSets, type: mode }));
-        } catch (e) {}
-      }
-
-      select.addEventListener('change', onSelectChange);
-      
-      const cancelBtn = document.getElementById('modalCancel');
-      const addBtn = document.getElementById('modalAdd');
-      cancelBtn.addEventListener('click', onCancel);
-      addBtn.addEventListener('click', onAdd);
-    }
+    // (old addSet function removed - now using simplified tile-based UI)
 
     async function exportRowsToSheet() {
       // Flatten global sets list into rows for the Sheet. Each set is one row.
@@ -783,15 +639,13 @@
         }
       } catch (e) {
         console.warn(e);
-        flashStatus('Export failed', 3000);
       }
     }
 
-  // --- small UI bindings for main actions ---
-  // Wire the three primary buttons: Log Set, Log Run, Add Exercise
-  logSetBtn.addEventListener('click', () => addSet('strength'));
-  logRunBtn.addEventListener('click', () => addSet('cardio'));
-  addExerciseBtn.addEventListener('click', () => addExercise());
+  // --- Render exercises grid on load and after data changes ---
+  window.addEventListener('load', () => {
+    renderExercisesGrid();
+  });
 
   // legacy token/test debug handlers removed from main UI
     
@@ -1068,7 +922,7 @@
         const mapped = res.exercises.map(ex => ({ id: ex.id || ex.name || Date.now(), name: ex.name || '', notes: ex.notes || '' }));
         saveExercises(mapped);
         flashStatus('Exercises loaded', 1400);
-        updateExerciseSelect();
+        renderExercisesGrid(); // Re-render grid after loading
       }
     } catch (e) {
       console.warn('fetchExercises failed', e);
