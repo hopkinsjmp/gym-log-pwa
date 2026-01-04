@@ -629,7 +629,15 @@
         });
       }
 
-      // Build picker wheels for weight and reps
+      // Prepare UI controls depending on exercise modality
+      // modality: 'weighted' | 'bodyweight' | 'duration'
+      const modality = (exercise.modality || 'weighted');
+
+      // Remove any existing duration input from previous opens
+      const existingDuration = document.getElementById('durationContainer');
+      if (existingDuration) existingDuration.remove();
+
+      // Build picker wheels for weight and reps values (re-used when needed)
       const weightValues = [];
       for (let w = 0; w <= 200; w += 1) weightValues.push(w + ' kg');
       const repsValues = [];
@@ -637,20 +645,20 @@
 
       const wEl = document.getElementById('pickerWeight');
       const rEl = document.getElementById('pickerReps');
-      
+      const weightWrapper = wEl.parentElement;
+      const repsWrapper = rEl.parentElement;
+
       // Auto-load plan values if available
       let defaultWeightIdx = 20;
       let defaultRepsIdx = 4;
       if (exercise.plan && exercise.plan.weight && exercise.plan.reps) {
         defaultWeightIdx = Math.min(exercise.plan.weight, 200);
         defaultRepsIdx = Math.min(exercise.plan.reps - 1, 29);
-        
-        // Show plan info
         const planInfo = document.getElementById('planInfo');
         planInfo.textContent = `Planned: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} @ ${exercise.plan.weight}kg`;
         planInfo.style.display = 'block';
       }
-      
+
       // Display plan reasoning if available
       if (exercise.planReasoning) {
         const reasoningDiv = document.getElementById('planReasoning');
@@ -658,9 +666,36 @@
         reasoningText.textContent = exercise.planReasoning;
         reasoningDiv.style.display = 'block';
       }
-      
-      const weightPicker = buildPicker(wEl, weightValues, defaultWeightIdx);
-      const repsPicker = buildPicker(rEl, repsValues, defaultRepsIdx);
+
+      // Conditionally render controls
+      let weightPicker = null;
+      let repsPicker = null;
+      if (modality === 'weighted') {
+        // show both pickers
+        weightWrapper.style.display = '';
+        repsWrapper.style.display = '';
+        weightPicker = buildPicker(wEl, weightValues, defaultWeightIdx);
+        repsPicker = buildPicker(rEl, repsValues, defaultRepsIdx);
+      } else if (modality === 'bodyweight') {
+        // hide weight picker, show reps picker
+        weightWrapper.style.display = 'none';
+        repsWrapper.style.display = '';
+        wEl.innerHTML = '';
+        repsPicker = buildPicker(rEl, repsValues, defaultRepsIdx);
+      } else if (modality === 'duration') {
+        // hide both pickers and render a duration input
+        weightWrapper.style.display = 'none';
+        repsWrapper.style.display = 'none';
+        wEl.innerHTML = '';
+        rEl.innerHTML = '';
+        const quickAdd = document.getElementById('quickAddSet');
+        const container = document.createElement('div');
+        container.id = 'durationContainer';
+        container.style.marginTop = '8px';
+        container.style.marginBottom = '8px';
+        container.innerHTML = `<div style="font-weight:500; margin-bottom:6px; font-size:13px; opacity:0.85;">Duration (sec)</div><input id="durationInput" type="number" min="1" placeholder="Seconds" style="width:100%; padding:10px; border-radius:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#f9fafb; font-size:14px;">`;
+        quickAdd.parentElement.insertBefore(container, quickAdd);
+      }
 
       // Edit Plan button: prompt for plan values
       editPlanBtn.onclick = () => {
@@ -698,6 +733,33 @@
         openExerciseModal(exercise); // refresh modal
       };
 
+      // Edit Exercise button: allow changing name/modality
+      try {
+        const editExerciseBtn = document.createElement('button');
+        editExerciseBtn.textContent = 'Edit';
+        editExerciseBtn.className = 'secondary';
+        editExerciseBtn.style.padding = '6px 10px';
+        editExerciseBtn.style.fontSize = '12px';
+        editExerciseBtn.onclick = async () => {
+          const newName = prompt('Exercise name:', exercise.name || '');
+          if (!newName) return;
+          let newMod = prompt('Modality (weighted / bodyweight / duration):', exercise.modality || 'weighted');
+          if (!newMod) newMod = 'weighted';
+          newMod = newMod.trim().toLowerCase();
+          if (!['weighted','bodyweight','duration'].includes(newMod)) newMod = 'weighted';
+          exercise.name = newName.trim();
+          exercise.modality = newMod;
+          const exercises = loadExercises();
+          const idx = exercises.findIndex(e => e.id === exercise.id);
+          if (idx >= 0) { exercises[idx] = exercise; saveExercises(exercises); }
+          try { await enqueueAction('upsert_exercise', JSON.stringify(exercise)); } catch (e) { console.warn('upsert_exercise failed', e); }
+          renderExercisesGrid();
+          openExerciseModal(exercise);
+        };
+        // insert before remove button
+        if (removeBtn && removeBtn.parentElement) removeBtn.parentElement.insertBefore(editExerciseBtn, removeBtn);
+      } catch (e) {}
+
       // Remove Exercise button: deletes exercise from user list (server + local)
       const removeBtn = document.getElementById('removeExerciseBtn');
       if (removeBtn) {
@@ -725,40 +787,63 @@
         };
       }
 
-      // Quick-add handler using pickers
+      // Quick-add handler using modality-aware controls
       addBtn.onclick = async () => {
-        const weightVal = weightPicker ? weightPicker.getValue() : null;
-        const repsVal = repsPicker ? repsPicker.getValue() : null;
-        const weightNum = weightVal ? String(weightVal).replace(' kg','').trim() : '';
-        const repsNum = repsVal ? parseInt(repsVal,10) : 0;
-        if (!repsNum || repsNum <= 0) return flashStatus('Enter reps', 1200);
-
+        const modality = (exercise.modality || 'weighted');
         const sid = generateId();
         const ts = new Date().toISOString();
-        const setObj = { id: sid, exerciseId: exercise.id, ts, reps: repsNum, weight: weightNum ? `${weightNum}kg` : '' };
-        
-        const sets = loadSets();
-        sets.push(setObj);
-        saveSets(sets);
+
+        let setObj = null;
+        let effort = null;
+
+        try {
+          if (modality === 'weighted') {
+            const weightVal = (typeof weightPicker !== 'undefined' && weightPicker) ? weightPicker.getValue() : null;
+            const repsVal = (typeof repsPicker !== 'undefined' && repsPicker) ? repsPicker.getValue() : null;
+            const weightNum = weightVal ? String(weightVal).replace(' kg','').trim() : '';
+            const repsNum = repsVal ? parseInt(repsVal,10) : 0;
+            if (!repsNum || repsNum <= 0) return flashStatus('Enter reps', 1200);
+            if (!weightNum || isNaN(Number(weightNum))) return flashStatus('Enter weight', 1200);
+
+            setObj = { id: sid, exerciseId: exercise.id, ts, reps: repsNum, weight: `${weightNum}kg`, modality };
+            effort = { id: sid, exerciseId: exercise.id, performedAt: ts, reps: repsNum, weightKg: Number(weightNum), notes: '' };
+
+          } else if (modality === 'bodyweight') {
+            const repsVal = (typeof repsPicker !== 'undefined' && repsPicker) ? repsPicker.getValue() : null;
+            const repsNum = repsVal ? parseInt(repsVal,10) : 0;
+            if (!repsNum || repsNum <= 0) return flashStatus('Enter reps', 1200);
+
+            setObj = { id: sid, exerciseId: exercise.id, ts, reps: repsNum, weight: '', modality };
+            effort = { id: sid, exerciseId: exercise.id, performedAt: ts, reps: repsNum, weightKg: null, notes: '' };
+
+          } else if (modality === 'duration') {
+            const durInput = document.getElementById('durationInput');
+            const durVal = durInput ? parseInt(durInput.value, 10) : 0;
+            if (!durVal || durVal <= 0) return flashStatus('Enter duration (sec)', 1200);
+
+            setObj = { id: sid, exerciseId: exercise.id, ts, duration_s: durVal, modality };
+            effort = { id: sid, exerciseId: exercise.id, performedAt: ts, durationSec: durVal, notes: '' };
+          }
+        } catch (e) {
+          console.warn('Quick-add build error', e);
+          return flashStatus('Invalid input', 1200);
+        }
+
+        // Persist locally
+        try {
+          const sets = loadSets();
+          sets.push(setObj);
+          saveSets(sets);
+        } catch (e) {}
 
         flashStatus('Set added ✔️', 1200);
 
         // Sync to server using new Effort model
         try {
-          // convert local setObj to Effort shape: id, exerciseId, performedAt, reps, weightKg, notes
-          const weightKg = setObj.weight ? Number(String(setObj.weight).replace(/kg/i, '').trim()) : null;
-          const effort = {
-            id: setObj.id,
-            exerciseId: exercise.id,
-            performedAt: setObj.ts,
-            reps: setObj.reps,
-            weightKg: weightKg !== null && !isNaN(weightKg) ? weightKg : null,
-            notes: setObj.notes || ''
-          };
           await enqueueAction('log_efforts', JSON.stringify({ efforts: [effort] }));
         } catch (e) { console.warn('log_efforts failed', e); }
 
-        // Refresh history and pickers
+        // Refresh modal and grid
         openExerciseModal(exercise);
         renderExercisesGrid(); // refresh tiles to update unsynced badge
       };
@@ -860,8 +945,14 @@
     async function addExercise() {
       const name = prompt('Exercise name (e.g. Bench Press)');
       if (!name) return flashStatus('Cancelled', 1200);
+      // Prompt for modality
+      let modality = prompt('Modality (weighted / bodyweight / duration). Default: weighted', 'weighted');
+      if (!modality) modality = 'weighted';
+      modality = modality.trim().toLowerCase();
+      if (!['weighted','bodyweight','duration'].includes(modality)) modality = 'weighted';
+
       const exercises = loadExercises();
-      const ex = { id: generateId(), name: name.trim(), notes: '' };
+      const ex = { id: generateId(), name: name.trim(), notes: '', modality };
       exercises.push(ex);
       saveExercises(exercises);
       flashStatus('Exercise added ✔️');
