@@ -410,6 +410,15 @@
   <div class="status" id="status" style="margin-top:8px;"></div>
   <div class="status" id="syncStatus" style="margin-top:6px; font-size:0.9rem; opacity:0.9"></div>
 
+  <!-- Training Plan Summary (collapsible) -->
+  <div id="planSummary" style="display:none; margin:12px 0; padding:12px; background:rgba(124, 58, 237, 0.08); border:1px solid rgba(124, 58, 237, 0.3); border-radius:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="document.getElementById('planSummaryContent').style.display = document.getElementById('planSummaryContent').style.display === 'none' ? 'block' : 'none';">
+      <div style="font-weight:600; font-size:14px;">📋 Training Strategy</div>
+      <div id="planSummaryDate" style="font-size:12px; opacity:0.7;"></div>
+    </div>
+    <div id="planSummaryContent" style="margin-top:8px; font-size:13px; line-height:1.5; display:block;"></div>
+  </div>
+
   <!-- Generate All Plans button -->
   <div style="margin:12px 0;">
     <button id="generateAllPlansBtn" style="width:100%; padding:12px; background:#7c3aed; font-size:15px;">
@@ -459,8 +468,6 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
           <div style="font-weight:600; font-size:14px;">Log New Set</div>
           <div style="display:flex; gap:6px;">
-            <button id="generatePlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">✨ Generate Plan</button>
-            <button id="loadPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Load Plan</button>
             <button id="editPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Edit Plan</button>
           </div>
         </div>
@@ -606,29 +613,29 @@
       const wEl = document.getElementById('pickerWeight');
       const rEl = document.getElementById('pickerReps');
       
-      // Use plan values as defaults if available, otherwise use generic defaults
+      // Auto-load plan values if available
       let defaultWeightIdx = 20;
       let defaultRepsIdx = 4;
       if (exercise.plan && exercise.plan.weight && exercise.plan.reps) {
         defaultWeightIdx = Math.min(exercise.plan.weight, 200);
         defaultRepsIdx = Math.min(exercise.plan.reps - 1, 29);
+        
+        // Show plan info
+        const planInfo = document.getElementById('planInfo');
+        planInfo.textContent = `Planned: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} @ ${exercise.plan.weight}kg`;
+        planInfo.style.display = 'block';
+      }
+      
+      // Display plan reasoning if available
+      if (exercise.planReasoning) {
+        const reasoningDiv = document.getElementById('planReasoning');
+        const reasoningText = document.getElementById('planReasoningText');
+        reasoningText.textContent = exercise.planReasoning;
+        reasoningDiv.style.display = 'block';
       }
       
       const weightPicker = buildPicker(wEl, weightValues, defaultWeightIdx);
       const repsPicker = buildPicker(rEl, repsValues, defaultRepsIdx);
-
-      // Load Plan button: set pickers to planned values
-      loadPlanBtn.onclick = () => {
-        if (!exercise.plan || !exercise.plan.weight || !exercise.plan.reps) {
-          return flashStatus('No plan set for this exercise', 1500);
-        }
-        // Re-build pickers with plan values selected
-        const wIdx = Math.min(exercise.plan.weight, 200);
-        const rIdx = Math.min(exercise.plan.reps - 1, 29);
-        buildPicker(wEl, weightValues, wIdx);
-        buildPicker(rEl, repsValues, rIdx);
-        flashStatus(`Loaded plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} @ ${exercise.plan.weight}kg`, 2000);
-      };
 
       // Edit Plan button: prompt for plan values
       editPlanBtn.onclick = () => {
@@ -664,38 +671,6 @@
         
         flashStatus('Plan updated ✔️', 1500);
         openExerciseModal(exercise); // refresh modal
-      };
-
-      // Generate Plan button: call server to use Gemini to create a plan based on logs
-      const generatePlanBtn = document.getElementById('generatePlanBtn');
-      generatePlanBtn.onclick = async () => {
-        generatePlanBtn.disabled = true;
-        generatePlanBtn.textContent = '⏳ Generating...';
-        try {
-          const res = await logActionToSheet('generate_plan', JSON.stringify({ exerciseId: exercise.id, autoSave: true }));
-          if (res && res.ok && res.plan) {
-            // Update local exercise with generated plan AND reasoning
-            exercise.plan = res.plan;
-            exercise.planReasoning = res.reasoning || '';
-            const exercises = loadExercises();
-            const idx = exercises.findIndex(e => e.id === exercise.id);
-            if (idx >= 0) {
-              exercises[idx] = exercise;
-              saveExercises(exercises);
-            }
-            
-            flashStatus(`✨ Plan generated!`, 2000);
-            openExerciseModal(exercise); // refresh to show new plan + reasoning
-          } else {
-            flashStatus('Plan generation failed (see console)', 2500);
-            console.warn('generate_plan response:', res);
-          }
-        } catch (e) {
-          flashStatus('Plan generation error', 2000);
-          console.warn('generate_plan error:', e);
-        }
-        generatePlanBtn.disabled = false;
-        generatePlanBtn.textContent = '✨ Generate Plan';
       };
 
       // Quick-add handler using pickers
@@ -755,6 +730,56 @@
       
       wheel.appendChild(scroll);
       el.appendChild(wheel);
+      
+      // Add touch scroll handling for mobile
+      let startY = 0;
+      let currentY = 0;
+      let scrollOffset = 0;
+      let isDragging = false;
+      
+      wheel.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        startY = e.touches[0].clientY;
+        currentY = startY;
+        const transform = scroll.style.transform || 'translateY(0px)';
+        scrollOffset = parseInt(transform.match(/-?\d+/)?.[0] || 0);
+      }, { passive: true });
+      
+      wheel.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        currentY = e.touches[0].clientY;
+        const delta = currentY - startY;
+        scroll.style.transform = `translateY(${scrollOffset + delta}px)`;
+        scroll.style.transition = 'none';
+      }, { passive: false });
+      
+      wheel.addEventListener('touchend', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        const delta = currentY - startY;
+        const finalOffset = scrollOffset + delta;
+        
+        // Snap to nearest item (each item is 32px)
+        const itemHeight = 32;
+        const snappedOffset = Math.round(finalOffset / itemHeight) * itemHeight;
+        const maxOffset = 0;
+        const minOffset = -(values.length - 1) * itemHeight;
+        const clampedOffset = Math.max(minOffset, Math.min(maxOffset, snappedOffset));
+        
+        scroll.style.transition = 'transform 0.15s ease-out';
+        scroll.style.transform = `translateY(${clampedOffset}px)`;
+        
+        // Update selected item
+        const selectedIdx = Math.abs(Math.round(clampedOffset / itemHeight));
+        Array.from(scroll.children).forEach((c, i) => {
+          c.classList.toggle('selected', i === selectedIdx);
+        });
+        
+        setTimeout(() => {
+          scroll.style.transition = '';
+        }, 150);
+      }, { passive: true });
       
       // Scroll the selected item into view initially
       setTimeout(() => {
@@ -1132,6 +1157,7 @@
         (async () => {
           try { await fetchAndSaveExercises(); } catch (e) {}
           try { await fetchAndMergeRecentLogs(); } catch (e) {}
+          try { await fetchAndDisplayPlanMetadata(); } catch (e) {}
         })();
       }
     } catch (e) {
@@ -1154,6 +1180,7 @@
         } catch (e) {}
         try { await fetchAndSaveExercises(); } catch (e) {}
         try { await fetchAndMergeRecentLogs(); } catch (e) {}
+        try { await fetchAndDisplayPlanMetadata(); } catch (e) {}
       })();
     } catch (e) {
       console.warn('GSI handle error', e);
@@ -1218,15 +1245,50 @@
     try {
       const res = await logActionToSheet('get_exercises', JSON.stringify({}));
       if (res && res.ok && Array.isArray(res.exercises)) {
-        // Map server exercises to local format {id, name, notes}
-        const mapped = res.exercises.map(ex => ({ id: ex.id || ex.name || Date.now(), name: ex.name || '', notes: ex.notes || '' }));
-        saveExercises(mapped);
+        // Save exercises with all plan data
+        saveExercises(res.exercises);
         flashStatus('Exercises loaded', 1400);
         renderExercisesGrid(); // Re-render grid after loading
       }
     } catch (e) {
       console.warn('fetchExercises failed', e);
     }
+  }
+
+  async function fetchAndDisplayPlanMetadata() {
+    try {
+      const res = await logActionToSheet('get_plan_metadata', JSON.stringify({}));
+      if (res && res.ok) {
+        const summary = document.getElementById('planSummary');
+        const content = document.getElementById('planSummaryContent');
+        const date = document.getElementById('planSummaryDate');
+        
+        if (res.globalReasoning) {
+          content.textContent = res.globalReasoning;
+          if (res.planLastUpdated) {
+            const lastUpdated = new Date(res.planLastUpdated);
+            const timeAgo = getTimeAgo(lastUpdated);
+            date.textContent = `Updated ${timeAgo}`;
+          }
+          summary.style.display = 'block';
+        } else {
+          summary.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      console.warn('fetchPlanMetadata failed', e);
+    }
+  }
+
+  function getTimeAgo(date) {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
   }
 
   async function fetchAndMergeRecentLogs(limit = 50) {
@@ -1720,12 +1782,18 @@
                 saveExercises(exercises);
                 renderExercisesGrid(); // Refresh tiles
                 
+                // Refresh plan metadata display
+                try { await fetchAndDisplayPlanMetadata(); } catch (e) {}
+                
                 // Show global reasoning
                 const globalMsg = res.globalReasoning || `Plans generated for ${updatedCount} exercises`;
                 flashStatus(`✨ ${globalMsg}`, 4000);
               } else {
                 flashStatus('No exercises to plan', 2000);
               }
+            } else if (res && res.cooldown) {
+              // 24h cooldown error
+              flashStatus(`⏱️ ${res.error}`, 4000);
             } else {
               const errMsg = res?.error || 'Plan generation failed';
               flashStatus(`⚠️ ${errMsg}`, 3000);
