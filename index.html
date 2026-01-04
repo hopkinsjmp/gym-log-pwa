@@ -434,6 +434,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
           <div style="font-weight:600; font-size:14px;">Log New Set</div>
           <div style="display:flex; gap:6px;">
+            <button id="generatePlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">✨ Generate Plan</button>
             <button id="loadPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Load Plan</button>
             <button id="editPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Edit Plan</button>
           </div>
@@ -624,6 +625,38 @@
         
         flashStatus('Plan updated ✔️', 1500);
         openExerciseModal(exercise); // refresh modal
+      };
+
+      // Generate Plan button: call server to use Gemini to create a plan based on logs
+      const generatePlanBtn = document.getElementById('generatePlanBtn');
+      generatePlanBtn.onclick = async () => {
+        generatePlanBtn.disabled = true;
+        generatePlanBtn.textContent = '⏳ Generating...';
+        try {
+          const res = await logActionToSheet('generate_plan', JSON.stringify({ exerciseId: exercise.id, autoSave: true }));
+          if (res && res.ok && res.plan) {
+            // Update local exercise with generated plan
+            exercise.plan = res.plan;
+            const exercises = loadExercises();
+            const idx = exercises.findIndex(e => e.id === exercise.id);
+            if (idx >= 0) {
+              exercises[idx] = exercise;
+              saveExercises(exercises);
+            }
+            
+            const msg = res.reasoning || 'Plan generated';
+            flashStatus(`✨ ${msg}`, 3000);
+            openExerciseModal(exercise); // refresh to show new plan
+          } else {
+            flashStatus('Plan generation failed (see console)', 2500);
+            console.warn('generate_plan response:', res);
+          }
+        } catch (e) {
+          flashStatus('Plan generation error', 2000);
+          console.warn('generate_plan error:', e);
+        }
+        generatePlanBtn.disabled = false;
+        generatePlanBtn.textContent = '✨ Generate Plan';
       };
 
       // Quick-add handler using pickers
