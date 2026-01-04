@@ -689,9 +689,8 @@
       }
 
       async function onAdd() {
-        const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
-        const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
-        const weightUnit = unitSelect.value;
+  const durationVal = durationInput.value === '' ? null : Number(durationInput.value);
+  const distanceVal = distanceInput.value === '' ? null : Number(distanceInput.value);
         
         let exObj = null;
         if (select.value === '__new__') {
@@ -701,6 +700,8 @@
           const exercises = loadExercises();
           exercises.push(exObj);
           saveExercises(exercises);
+          // Sync the new exercise to the server (upsert)
+          try { await enqueueAction('upsert_exercise', JSON.stringify(exObj)); } catch (e) { console.warn('upsert_exercise failed', e); }
         } else {
           const exercises = loadExercises();
           exObj = exercises.find(e => String(e.id) === String(select.value));
