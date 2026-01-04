@@ -468,8 +468,9 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
           <div style="font-weight:600; font-size:14px;">Log New Set</div>
           <div style="display:flex; gap:6px;">
-            <button id="editPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Edit Plan</button>
-          </div>
+              <button id="editPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Edit Plan</button>
+              <button id="removeExerciseBtn" class="secondary" style="padding:6px 10px; font-size:12px; background:#ef4444;">Remove</button>
+            </div>
         </div>
         <div id="planInfo" style="font-size:12px; opacity:0.7; margin-bottom:8px; display:none;"></div>
         <div id="planReasoning" class="plan-reasoning" style="display:none;">
@@ -672,6 +673,33 @@
         flashStatus('Plan updated ✔️', 1500);
         openExerciseModal(exercise); // refresh modal
       };
+
+      // Remove Exercise button: deletes exercise from user list (server + local)
+      const removeBtn = document.getElementById('removeExerciseBtn');
+      if (removeBtn) {
+        removeBtn.onclick = async () => {
+          if (!confirm(`Remove exercise "${exercise.name}" from your list? This cannot be undone.`)) return;
+          try {
+            const res = await logActionToSheet('delete_exercise', JSON.stringify({ id: exercise.id }));
+            if (res && res.ok) {
+              // remove locally
+              const exercises = loadExercises().filter(e => e.id !== exercise.id);
+              saveExercises(exercises);
+              renderExercisesGrid();
+              flashStatus('Exercise removed ✔️', 1600);
+              // close modal
+              const modal = document.getElementById('exerciseModal');
+              if (modal) modal.style.display = 'none';
+            } else {
+              flashStatus('Failed to remove exercise', 2000);
+              console.warn('delete_exercise response', res);
+            }
+          } catch (e) {
+            flashStatus('Error removing exercise', 2000);
+            console.error('delete_exercise error', e);
+          }
+        };
+      }
 
       // Quick-add handler using pickers
       addBtn.onclick = async () => {
