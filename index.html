@@ -285,6 +285,13 @@
 
   <div class="tiny" id="pwaInfo"></div>
 
+  <!-- Google Sign-In status & button -->
+  <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+    <div id="gsiStatus" class="tiny" style="flex:1;">Not signed in</div>
+    <div id="gsiButton"></div>
+    <button id="gsiSignOut" class="secondary" style="display:none;">Sign out</button>
+  </div>
+
   <!-- Add-Set modal -->
   <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999; overflow-y:auto; padding:20px 0;">
     <div style="background:#0b1220; padding:16px; border-radius:12px; width:92%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb; margin:auto;">
@@ -977,6 +984,9 @@
          <span class="mono">URL:</span> <code>${href}</code>`;
   </script>
 
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <script>
     // --- Logging to Google Sheets (Apps Script) ---
   // Configure these placeholders with your Apps Script web app URL and secret token.
@@ -986,6 +996,89 @@
   // (e.g. via localStorage) instead of committing it here.
   const SHEETS_SECRET_TOKEN = '';
   const SHEETS_LOCAL_TOKEN_KEY = 'gym-log-sheet-token';
+
+  // --- Google Sign-In (ID token) ---
+  // Replace with your web client ID from Google Cloud Console
+  const GSI_CLIENT_ID = 'REPLACE_WITH_GSI_CLIENT_ID.apps.googleusercontent.com';
+  const GSI_ID_TOKEN_KEY = 'gym-gsi-idtoken';
+
+  function parseJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function initGsi() {
+    try {
+      if (!window.google || !google.accounts || !google.accounts.id) return;
+      google.accounts.id.initialize({
+        client_id: GSI_CLIENT_ID,
+        callback: handleCredentialResponse,
+        cancel_on_tap_outside: true
+      });
+      // Render the standard Google Sign-In button into our container
+      const el = document.getElementById('gsiButton');
+      if (el) google.accounts.id.renderButton(el, { theme: 'outline', size: 'medium' });
+      // If we have a stored token, surface the user immediately
+      const existing = localStorage.getItem(GSI_ID_TOKEN_KEY);
+      if (existing) {
+        const payload = parseJwt(existing);
+        updateGsiStatusUI(payload);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function handleCredentialResponse(resp) {
+    if (!resp || !resp.credential) return;
+    try {
+      localStorage.setItem(GSI_ID_TOKEN_KEY, resp.credential);
+      const payload = parseJwt(resp.credential);
+      updateGsiStatusUI(payload);
+      flashStatus('Signed in ✔️', 1600);
+    } catch (e) {
+      console.warn('GSI handle error', e);
+    }
+  }
+
+  function updateGsiStatusUI(payload) {
+    const s = document.getElementById('gsiStatus');
+    const btn = document.getElementById('gsiButton');
+    const out = document.getElementById('gsiSignOut');
+    if (!s) return;
+    if (payload && payload.email) {
+      s.textContent = `Signed in as ${payload.email}`;
+      if (btn) btn.style.display = 'none';
+      if (out) out.style.display = '';
+    } else {
+      s.textContent = 'Not signed in';
+      if (btn) btn.style.display = '';
+      if (out) out.style.display = 'none';
+    }
+  }
+
+  function signOutGsi() {
+    try {
+      localStorage.removeItem(GSI_ID_TOKEN_KEY);
+      updateGsiStatusUI(null);
+      if (window.google && google.accounts && google.accounts.id && google.accounts.id.disableAutoSelect) {
+        google.accounts.id.disableAutoSelect();
+      }
+      flashStatus('Signed out', 1200);
+    } catch (e) {}
+  }
+
+  function getGsiIdToken() {
+    try { return localStorage.getItem(GSI_ID_TOKEN_KEY); } catch (e) { return null; }
+  }
 
     async function logActionToSheet(action, details = '') {
       if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('REPLACE_WITH')) return false;
@@ -1018,6 +1111,9 @@
         if (SHEETS_SECRET_TOKEN) payload._token = SHEETS_SECRET_TOKEN;
         const localToken = localStorage.getItem(SHEETS_LOCAL_TOKEN_KEY);
         if (localToken) payload._token = localToken;
+        // Include Google ID token if the user signed in via GSI
+        const idToken = getGsiIdToken();
+        if (idToken) payload._id_token = idToken;
       } catch (e) {
         // ignore localStorage errors (e.g., privacy mode)
       }
@@ -1382,6 +1478,14 @@
         flushQueue();
       }, 1200);
     });
+    // Initialize Google Sign-In when page loads
+    window.addEventListener('load', initGsi);
+
+    // Wire sign-out button
+    try {
+      const gsiOut = document.getElementById('gsiSignOut');
+      if (gsiOut) gsiOut.addEventListener('click', signOutGsi);
+    } catch (e) {}
   </script>
 </body>
 </html>
