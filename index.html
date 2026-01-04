@@ -387,9 +387,6 @@
 
 <body>
   <h1>🏋️ Gym Log</h1>
-  <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-    <button id="addSetGlobal" class="secondary" style="padding:8px 12px; font-size:14px;">+ Add Set</button>
-  </div>
   <p class="hint">Tap an exercise to see history and log a new set.</p>
 
   <div class="status" id="status" style="margin-top:8px;"></div>
@@ -432,47 +429,22 @@
         <div style="opacity:0.7; font-size:14px;">Loading history...</div>
       </div>
 
-      <!-- Quick add form -->
-      <div class="quick-add-form">
-        <div style="font-weight:600; margin-bottom:8px; font-size:14px;">Log New Set</div>
-        <div class="form-row">
-          <input id="quickWeight" type="number" step="0.5" placeholder="Weight (kg)" />
-          <input id="quickReps" type="number" placeholder="Reps" />
+      <!-- Picker wheels for adding a new set -->
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">
+        <div style="font-weight:600; margin-bottom:10px; font-size:14px;">Log New Set</div>
+        <div style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <div style="font-weight:500; margin-bottom:6px; font-size:13px; opacity:0.85;">Weight</div>
+            <div class="picker-container" id="pickerWeight"></div>
+          </div>
+          <div style="width:110px">
+            <div style="font-weight:500; margin-bottom:6px; font-size:13px; opacity:0.85;">Reps</div>
+            <div class="picker-container" id="pickerReps"></div>
+          </div>
         </div>
-        <button id="quickAddSet" type="button" style="width:100%; padding:10px;">Add Set</button>
+        <button id="quickAddSet" type="button" style="width:100%; padding:10px; margin-top:12px;">Add Set</button>
       </div>
     </div>
-
-      <!-- Add Set modal (picker wheels: weight + reps) -->
-      <div id="addSetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:9999; overflow-y:auto; padding:20px 0;">
-        <div style="background:#0b1220; padding:16px; border-radius:12px; width:94%; max-width:560px; box-shadow:0 10px 30px rgba(0,0,0,0.6); color:#f9fafb; margin:auto;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h3 style="margin:0; font-size:1.1rem;">Log New Set</h3>
-            <button id="addSetClose" class="secondary" style="padding:6px 10px; font-size:14px;">✕</button>
-          </div>
-
-          <div style="margin-bottom:8px;">
-            <label style="font-size:13px; opacity:0.85; display:block; margin-bottom:6px;">Exercise</label>
-            <select id="addSetExercise" style="width:100%; padding:10px; border-radius:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); color:#f9fafb;"></select>
-          </div>
-
-          <div style="display:flex; gap:8px; margin-top:6px;">
-            <div style="flex:1">
-              <div style="font-weight:600; margin-bottom:6px;">Weight</div>
-              <div class="picker-container" id="pickerWeight"></div>
-            </div>
-            <div style="width:110px">
-              <div style="font-weight:600; margin-bottom:6px;">Reps</div>
-              <div class="picker-container" id="pickerReps"></div>
-            </div>
-          </div>
-
-          <div style="margin-top:14px; display:flex; gap:8px;">
-            <button id="addSetConfirm" style="flex:1; padding:10px;">Add Set</button>
-            <button id="addSetCancel" class="secondary" style="padding:10px;">Cancel</button>
-          </div>
-        </div>
-      </div>
   </div>
 
   <!-- Old modals removed -->
@@ -532,15 +504,11 @@
       const modal = document.getElementById('exerciseModal');
       const nameEl = document.getElementById('modalExerciseName');
       const historyEl = document.getElementById('exerciseHistory');
-      const weightInput = document.getElementById('quickWeight');
-      const repsInput = document.getElementById('quickReps');
       const addBtn = document.getElementById('quickAddSet');
       const closeBtn = document.getElementById('modalClose');
 
       nameEl.textContent = exercise.name;
       historyEl.innerHTML = '<div style="opacity:0.7; font-size:14px;">Loading history...</div>';
-      weightInput.value = '';
-      repsInput.value = '';
       modal.style.display = 'flex';
 
       // Load recent sets for this exercise
@@ -561,127 +529,85 @@
         });
       }
 
-      // Quick-add handler
+      // Build picker wheels for weight and reps
+      const weightValues = [];
+      for (let w = 0; w <= 200; w += 1) weightValues.push(w + ' kg');
+      const repsValues = [];
+      for (let r = 1; r <= 30; r++) repsValues.push(String(r));
+
+      const wEl = document.getElementById('pickerWeight');
+      const rEl = document.getElementById('pickerReps');
+      const weightPicker = buildPicker(wEl, weightValues, 20); // default 20kg
+      const repsPicker = buildPicker(rEl, repsValues, 4); // default 5 reps
+
+      // Quick-add handler using pickers
       addBtn.onclick = async () => {
-        const weight = weightInput.value ? parseFloat(weightInput.value) : 0;
-        const reps = repsInput.value ? parseInt(repsInput.value) : 0;
-        if (reps <= 0) return flashStatus('Enter reps', 1200);
+        const weightVal = weightPicker ? weightPicker.getValue() : null;
+        const repsVal = repsPicker ? repsPicker.getValue() : null;
+        const weightNum = weightVal ? String(weightVal).replace(' kg','').trim() : '';
+        const repsNum = repsVal ? parseInt(repsVal,10) : 0;
+        if (!repsNum || repsNum <= 0) return flashStatus('Enter reps', 1200);
 
         const sid = generateId();
         const ts = new Date().toISOString();
-        const setObj = { id: sid, exerciseId: exercise.id, ts, reps, weight: weight > 0 ? `${weight}kg` : '' };
+        const setObj = { id: sid, exerciseId: exercise.id, ts, reps: repsNum, weight: weightNum ? `${weightNum}kg` : '' };
         
         const sets = loadSets();
         sets.push(setObj);
         saveSets(sets);
 
         flashStatus('Set added ✔️', 1200);
-        weightInput.value = '';
-        repsInput.value = '';
 
         // Sync to server
         try {
           await enqueueAction('log_set', JSON.stringify({ exerciseId: exercise.id, exercise: exercise.name, sets: [setObj], type: 'strength' }));
         } catch (e) { console.warn('log_set failed', e); }
 
-        // Refresh history
+        // Refresh history and pickers
         openExerciseModal(exercise);
       };
 
-      // --- Add Set modal logic (global add-set) ---
-      function buildPicker(el, values, initialIndex = 0) {
-        // Clear
-        el.innerHTML = '';
-        const wheel = document.createElement('div');
-        wheel.className = 'picker-wheel';
-        const scroll = document.createElement('div');
-        scroll.className = 'picker-scroll';
-        // add padding items to center first/last
-        values.forEach((v, i) => {
-          const it = document.createElement('div');
-          it.className = 'picker-item' + (i === initialIndex ? ' selected' : '');
-          it.textContent = v;
-          it.dataset.value = v;
-          it.addEventListener('click', () => {
-            // deselect siblings
-            Array.from(scroll.children).forEach(c => c.classList.remove('selected'));
-            it.classList.add('selected');
-          });
-          scroll.appendChild(it);
-        });
-        wheel.appendChild(scroll);
-        const label = document.createElement('div');
-        label.className = 'picker-label';
-        // container
-        el.appendChild(wheel);
-        el.appendChild(label);
-        return {
-          getValue: () => {
-            const sel = scroll.querySelector('.picker-item.selected');
-            return sel ? sel.dataset.value : null;
-          }
-        };
-      }
-
-      let weightPicker, repsPicker;
-      function openAddSetModal(prefillExerciseId) {
-        const modal = document.getElementById('addSetModal');
-        const sel = document.getElementById('addSetExercise');
-        const exercises = loadExercises();
-        sel.innerHTML = '';
-        exercises.forEach(ex => {
-          const o = document.createElement('option');
-          o.value = ex.id;
-          o.textContent = ex.name;
-          sel.appendChild(o);
-        });
-        if (prefillExerciseId) sel.value = prefillExerciseId;
-
-        // build pickers (weight: 0-200 step 0.5 or 2.5 depending on preference; use nice range)
-        const weightValues = [];
-        for (let w = 0; w <= 200; w += 1) weightValues.push(w + ' kg');
-        const repsValues = [];
-        for (let r = 1; r <= 30; r++) repsValues.push(String(r));
-
-        const wEl = document.getElementById('pickerWeight');
-        const rEl = document.getElementById('pickerReps');
-        const wObj = buildPicker(wEl, weightValues, 0);
-        const rObj = buildPicker(rEl, repsValues, 2);
-        weightPicker = wObj;
-        repsPicker = rObj;
-
-        modal.style.display = 'flex';
-      }
-
-      document.getElementById('addSetGlobal').addEventListener('click', () => openAddSetModal());
-      document.getElementById('addSetClose').addEventListener('click', () => { document.getElementById('addSetModal').style.display = 'none'; });
-      document.getElementById('addSetCancel').addEventListener('click', () => { document.getElementById('addSetModal').style.display = 'none'; });
-      document.getElementById('addSetConfirm').addEventListener('click', async () => {
-        const sel = document.getElementById('addSetExercise');
-        if (!sel || !sel.value) return flashStatus('Pick an exercise first', 1200);
-        const weightVal = weightPicker ? weightPicker.getValue() : null;
-        const repsVal = repsPicker ? repsPicker.getValue() : null;
-        const weightNum = weightVal ? String(weightVal).replace(' kg','') : '';
-        const repsNum = repsVal ? parseInt(repsVal,10) : 0;
-        if (!repsNum || repsNum <= 0) return flashStatus('Enter reps', 1200);
-
-        const sid = generateId();
-        const ts = new Date().toISOString();
-        const setObj = { id: sid, exerciseId: sel.value, ts, reps: repsNum, weight: weightNum ? `${weightNum}kg` : '' };
-        const sets = loadSets();
-        sets.push(setObj);
-        saveSets(sets);
-        flashStatus('Set added ✔️', 1200);
-
-        // Enqueue to server
-        try { await enqueueAction('log_set', JSON.stringify({ exerciseId: sel.value, exercise: sel.options[sel.selectedIndex].text, sets: [setObj], type: 'strength' })); } catch (e) { console.warn('enqueue failed', e); }
-
-        document.getElementById('addSetModal').style.display = 'none';
-        renderExercisesGrid();
-      });
-
       closeBtn.onclick = () => {
         modal.style.display = 'none';
+      };
+    }
+
+    // Helper to build iOS-style picker wheels
+    function buildPicker(el, values, initialIndex = 0) {
+      // Clear
+      el.innerHTML = '';
+      const wheel = document.createElement('div');
+      wheel.className = 'picker-wheel';
+      const scroll = document.createElement('div');
+      scroll.className = 'picker-scroll';
+      
+      values.forEach((v, i) => {
+        const it = document.createElement('div');
+        it.className = 'picker-item' + (i === initialIndex ? ' selected' : '');
+        it.textContent = v;
+        it.dataset.value = v;
+        it.addEventListener('click', () => {
+          // deselect siblings
+          Array.from(scroll.children).forEach(c => c.classList.remove('selected'));
+          it.classList.add('selected');
+        });
+        scroll.appendChild(it);
+      });
+      
+      wheel.appendChild(scroll);
+      el.appendChild(wheel);
+      
+      // Scroll the selected item into view initially
+      setTimeout(() => {
+        const selected = scroll.querySelector('.picker-item.selected');
+        if (selected) selected.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 50);
+      
+      return {
+        getValue: () => {
+          const sel = scroll.querySelector('.picker-item.selected');
+          return sel ? sel.dataset.value : null;
+        }
       };
     }
 
