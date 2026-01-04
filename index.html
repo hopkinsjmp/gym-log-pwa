@@ -593,9 +593,19 @@
       nameEl.textContent = exercise.name;
       historyEl.innerHTML = '<div style="opacity:0.7; font-size:14px;">Loading history...</div>';
       
-      // Show plan info if exercise has a plan
-      if (exercise.plan && exercise.plan.weight && exercise.plan.reps) {
-        planInfoEl.textContent = `Plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} reps @ ${exercise.plan.weight}kg${exercise.plan.nextDate ? ' (next: ' + new Date(exercise.plan.nextDate).toLocaleDateString() + ')' : ''}`;
+      // Show plan info if exercise has a plan (canonical fields)
+      if (exercise.plan && exercise.plan.sets) {
+        const mod = exercise.modality || 'weighted';
+        let txt = '';
+        if (mod === 'weighted') {
+          txt = `Plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps || 0} reps @ ${exercise.plan.weightKg || 0}kg`;
+        } else if (mod === 'bodyweight') {
+          txt = `Plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps || 0} reps`;
+        } else if (mod === 'duration') {
+          txt = `Plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.durationSec || 0}s`;
+        }
+        if (exercise.plan.nextDate) txt += ` (next: ${exercise.plan.nextDate})`;
+        planInfoEl.textContent = txt;
         planInfoEl.style.display = 'block';
       } else {
         planInfoEl.style.display = 'none';
@@ -648,14 +658,14 @@
       const weightWrapper = wEl.parentElement;
       const repsWrapper = rEl.parentElement;
 
-      // Auto-load plan values if available
+      // Auto-load plan values if available (canonical fields: weightKg, reps)
       let defaultWeightIdx = 20;
       let defaultRepsIdx = 4;
-      if (exercise.plan && exercise.plan.weight && exercise.plan.reps) {
-        defaultWeightIdx = Math.min(exercise.plan.weight, 200);
-        defaultRepsIdx = Math.min(exercise.plan.reps - 1, 29);
+      if (exercise.plan && (exercise.plan.weightKg !== undefined) && (exercise.plan.reps !== undefined)) {
+        defaultWeightIdx = Math.min(Number(exercise.plan.weightKg) || 20, 200);
+        defaultRepsIdx = Math.min((Number(exercise.plan.reps) || 1) - 1, 29);
         const planInfo = document.getElementById('planInfo');
-        planInfo.textContent = `Planned: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} @ ${exercise.plan.weight}kg`;
+        planInfo.textContent = `Planned: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} @ ${exercise.plan.weightKg}kg`;
         planInfo.style.display = 'block';
       }
 
@@ -697,43 +707,50 @@
         quickAdd.parentElement.insertBefore(container, quickAdd);
       }
 
-      // Edit Plan button: prompt for plan values
+      // Edit Plan button: prompt for plan values (modal-aware). Store plan locally only; do NOT sync to server.
       editPlanBtn.onclick = () => {
-        const weight = prompt('Plan weight (kg):', exercise.plan?.weight || 20);
-        if (weight === null) return;
-        const reps = prompt('Plan reps:', exercise.plan?.reps || 5);
-        if (reps === null) return;
+        const modality = exercise.modality || 'weighted';
+        const defaultNext = exercise.plan?.nextDate ? (exercise.plan.nextDate.split('T')[0] || '') : new Date(Date.now() + 86400000*2).toISOString().split('T')[0];
+
         const sets = prompt('Plan sets:', exercise.plan?.sets || 3);
         if (sets === null) return;
-        const nextDate = prompt('Next workout date (YYYY-MM-DD):', exercise.plan?.nextDate ? exercise.plan.nextDate.split('T')[0] : new Date(Date.now() + 86400000*2).toISOString().split('T')[0]);
-        if (nextDate === null) return;
 
-        const plan = {
-          weight: parseFloat(weight) || 0,
-          reps: parseInt(reps,10) || 0,
-          sets: parseInt(sets,10) || 0,
-          nextDate: nextDate ? new Date(nextDate).toISOString() : null
-        };
+        let plan = { sets: parseInt(sets,10) || 3, reps: null, weightKg: null, durationSec: null, nextDate: defaultNext };
+
+        if (modality === 'weighted') {
+          const reps = prompt('Plan reps:', exercise.plan?.reps || 10);
+          if (reps === null) return;
+          const weightKg = prompt('Plan weight (kg):', exercise.plan?.weightKg || 20);
+          if (weightKg === null) return;
+          plan.reps = parseInt(reps,10) || 0;
+          plan.weightKg = parseFloat(weightKg) || 0;
+        } else if (modality === 'bodyweight') {
+          const reps = prompt('Plan reps:', exercise.plan?.reps || 10);
+          if (reps === null) return;
+          plan.reps = parseInt(reps,10) || 0;
+        } else if (modality === 'duration') {
+          const duration = prompt('Plan duration (sec):', exercise.plan?.durationSec || 60);
+          if (duration === null) return;
+          plan.durationSec = parseInt(duration,10) || 0;
+        }
+
+        const nextDate = prompt('Next workout date (YYYY-MM-DD):', defaultNext);
+        if (nextDate === null) return;
+        plan.nextDate = (nextDate || defaultNext);
+
+        // Save locally (do not sync plans to server; exercises are canonical-only)
         exercise.plan = plan;
-        
-        // Save updated exercise locally
         const exercises = loadExercises();
         const idx = exercises.findIndex(e => e.id === exercise.id);
-        if (idx >= 0) {
-          exercises[idx] = exercise;
-          saveExercises(exercises);
-        }
-        
-        // Sync plan to server
-        try {
-          enqueueAction('upsert_exercise', JSON.stringify(exercise));
-        } catch (e) {}
-        
-        flashStatus('Plan updated ✔️', 1500);
+        if (idx >= 0) { exercises[idx] = exercise; saveExercises(exercises); }
+
+        flashStatus('Plan updated (local) ✔️', 1500);
         openExerciseModal(exercise); // refresh modal
       };
 
       // Edit Exercise button: allow changing name/modality
+      // Ensure removeBtn is defined before we reference it to avoid ReferenceError
+      const removeBtn = document.getElementById('removeExerciseBtn');
       try {
         const editExerciseBtn = document.createElement('button');
         editExerciseBtn.textContent = 'Edit';
@@ -756,12 +773,11 @@
           renderExercisesGrid();
           openExerciseModal(exercise);
         };
-        // insert before remove button
+        // insert before remove button if present
         if (removeBtn && removeBtn.parentElement) removeBtn.parentElement.insertBefore(editExerciseBtn, removeBtn);
       } catch (e) {}
-
+      
       // Remove Exercise button: deletes exercise from user list (server + local)
-      const removeBtn = document.getElementById('removeExerciseBtn');
       if (removeBtn) {
         removeBtn.onclick = async () => {
           if (!confirm(`Remove exercise "${exercise.name}" from your list? This cannot be undone.`)) return;
@@ -1515,17 +1531,18 @@
         const existingIds = new Set(existing.map(s => s.id));
         const toAdd = [];
         for (const r of rows) {
-          const sid = r.setId || generateId();
+          // Backend now returns canonical Effort-shaped objects: { createdAt,id,userEmail,exerciseId,exerciseName,performedAt,reps,weightKg,durationSec,notes }
+          const sid = r.id || generateId();
           if (existingIds.has(sid)) continue;
-          const ts = (r.date && new Date(r.date).toISOString()) || new Date().toISOString();
+          const ts = (r.performedAt && new Date(r.performedAt).toISOString()) || new Date().toISOString();
+          const weightStr = (r.weightKg !== null && r.weightKg !== undefined) ? String(r.weightKg) + 'kg' : '';
           const setObj = {
             id: sid,
             exerciseId: r.exerciseId || '',
             ts: ts,
-            reps: r.reps !== undefined ? r.reps : null,
-            weight: r.weight || '',
-            duration_s: r.duration_s !== undefined ? r.duration_s : null,
-            distance_km: r.distance_km !== undefined ? r.distance_km : null,
+            reps: r.reps !== undefined && r.reps !== null ? r.reps : null,
+            weight: weightStr,
+            duration_s: r.durationSec !== undefined && r.durationSec !== null ? r.durationSec : null,
             notes: r.notes || ''
           };
           toAdd.push(setObj);
