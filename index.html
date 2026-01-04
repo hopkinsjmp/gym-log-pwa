@@ -250,6 +250,24 @@
       justify-content: center;
     }
 
+    .plan-reasoning {
+      background: rgba(124, 58, 237, 0.08);
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #e9d5ff;
+    }
+
+    .plan-reasoning strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #f3e8ff;
+      font-size: 13px;
+    }
+
     .add-set-btn:hover {
       background: rgba(124, 58, 237, 0.25);
       border-color: rgba(124, 58, 237, 0.6);
@@ -440,6 +458,10 @@
           </div>
         </div>
         <div id="planInfo" style="font-size:12px; opacity:0.7; margin-bottom:8px; display:none;"></div>
+        <div id="planReasoning" class="plan-reasoning" style="display:none;">
+          <strong>✨ AI Coach says:</strong>
+          <span id="planReasoningText"></span>
+        </div>
         <div style="display:flex; gap:8px;">
           <div style="flex:1">
             <div style="font-weight:500; margin-bottom:6px; font-size:13px; opacity:0.85;">Weight</div>
@@ -526,6 +548,8 @@
       const loadPlanBtn = document.getElementById('loadPlanBtn');
       const editPlanBtn = document.getElementById('editPlanBtn');
       const planInfoEl = document.getElementById('planInfo');
+      const planReasoningEl = document.getElementById('planReasoning');
+      const planReasoningText = document.getElementById('planReasoningText');
 
       nameEl.textContent = exercise.name;
       historyEl.innerHTML = '<div style="opacity:0.7; font-size:14px;">Loading history...</div>';
@@ -536,6 +560,14 @@
         planInfoEl.style.display = 'block';
       } else {
         planInfoEl.style.display = 'none';
+      }
+      
+      // Show plan reasoning if it exists
+      if (exercise.planReasoning) {
+        planReasoningText.textContent = exercise.planReasoning;
+        planReasoningEl.style.display = 'block';
+      } else {
+        planReasoningEl.style.display = 'none';
       }
       
       modal.style.display = 'flex';
@@ -635,8 +667,9 @@
         try {
           const res = await logActionToSheet('generate_plan', JSON.stringify({ exerciseId: exercise.id, autoSave: true }));
           if (res && res.ok && res.plan) {
-            // Update local exercise with generated plan
+            // Update local exercise with generated plan AND reasoning
             exercise.plan = res.plan;
+            exercise.planReasoning = res.reasoning || '';
             const exercises = loadExercises();
             const idx = exercises.findIndex(e => e.id === exercise.id);
             if (idx >= 0) {
@@ -644,9 +677,8 @@
               saveExercises(exercises);
             }
             
-            const msg = res.reasoning || 'Plan generated';
-            flashStatus(`✨ ${msg}`, 3000);
-            openExerciseModal(exercise); // refresh to show new plan
+            flashStatus(`✨ Plan generated!`, 2000);
+            openExerciseModal(exercise); // refresh to show new plan + reasoning
           } else {
             flashStatus('Plan generation failed (see console)', 2500);
             console.warn('generate_plan response:', res);
