@@ -743,10 +743,20 @@
 
         flashStatus('Set added ✔️', 1200);
 
-        // Sync to server
+        // Sync to server using new Effort model
         try {
-          await enqueueAction('log_set', JSON.stringify({ exerciseId: exercise.id, exercise: exercise.name, sets: [setObj], type: 'strength' }));
-        } catch (e) { console.warn('log_set failed', e); }
+          // convert local setObj to Effort shape: id, exerciseId, performedAt, reps, weightKg, notes
+          const weightKg = setObj.weight ? Number(String(setObj.weight).replace(/kg/i, '').trim()) : null;
+          const effort = {
+            id: setObj.id,
+            exerciseId: exercise.id,
+            performedAt: setObj.ts,
+            reps: setObj.reps,
+            weightKg: weightKg !== null && !isNaN(weightKg) ? weightKg : null,
+            notes: setObj.notes || ''
+          };
+          await enqueueAction('log_efforts', JSON.stringify({ efforts: [effort] }));
+        } catch (e) { console.warn('log_efforts failed', e); }
 
         // Refresh history and pickers
         openExerciseModal(exercise);
@@ -1558,17 +1568,24 @@
             } catch (e) {
               // ignore
             }
-            // If this was a log_set action, record the set ids that the server
+            // If this was a log_efforts action, record the effort ids that the server
             // accepted so we don't re-send them after a reload.
             try {
-              if (action === 'log_set') {
-                let parsed = details;
-                if (typeof details === 'string') {
-                  try { parsed = JSON.parse(details); } catch (e) { parsed = null; }
-                }
-                if (parsed && Array.isArray(parsed.sets)) {
-                  const ids = parsed.sets.map(s => s && s.id).filter(Boolean);
+              if (action === 'log_efforts') {
+                // prefer server-reported saved ids when available
+                if (res && res.ok && Array.isArray(res.saved)) {
+                  const ids = res.saved.map(s => s && s.id).filter(Boolean);
                   if (ids.length) addLoggedSetIds(ids);
+                } else {
+                  // fallback: read ids from outgoing payload
+                  let parsed = details;
+                  if (typeof details === 'string') {
+                    try { parsed = JSON.parse(details); } catch (e) { parsed = null; }
+                  }
+                  if (parsed && Array.isArray(parsed.efforts)) {
+                    const ids = parsed.efforts.map(s => s && s.id).filter(Boolean);
+                    if (ids.length) addLoggedSetIds(ids);
+                  }
                 }
               }
             } catch (e) {
@@ -1581,26 +1598,26 @@
           // fall through to queueing
         }
       }
-      // queue locally
+          // queue locally
       try {
         const q = JSON.parse(localStorage.getItem(ACTION_QUEUE_KEY) || '[]');
         // avoid exact-duplicate queue entries (same fingerprint)
         const exists = q.some((it) => it.fingerprint === fingerprint);
         if (!exists) {
-          // If this is a log_set, avoid queueing it if all set ids are already recorded
-          let shouldQueue = true;
-          if (action === 'log_set') {
-            let parsed = details;
-            if (typeof details === 'string') {
-              try { parsed = JSON.parse(details); } catch (e) { parsed = null; }
-            }
-            if (parsed && Array.isArray(parsed.sets)) {
-              const logged = new Set(loadLoggedSetIds());
-              const allLogged = parsed.sets.every(s => s && s.id && logged.has(s.id));
-              if (allLogged) shouldQueue = false;
-            }
-          }
-          if (shouldQueue) q.push(item);
+          // If this is a log_efforts, avoid queueing it if all effort ids are already recorded
+              let shouldQueue = true;
+              if (action === 'log_efforts') {
+                let parsed = details;
+                if (typeof details === 'string') {
+                  try { parsed = JSON.parse(details); } catch (e) { parsed = null; }
+                }
+                if (parsed && Array.isArray(parsed.efforts)) {
+                  const logged = new Set(loadLoggedSetIds());
+                  const allLogged = parsed.efforts.every(s => s && s.id && logged.has(s.id));
+                  if (allLogged) shouldQueue = false;
+                }
+              }
+              if (shouldQueue) q.push(item);
         }
         localStorage.setItem(ACTION_QUEUE_KEY, JSON.stringify(q));
         updateSyncStatus();
@@ -1622,21 +1639,25 @@
           try {
             const res = await logActionToSheet(item.action, item.details);
             if (res && res.ok) {
-              // mark this fingerprint as successfully sent
-              sentFingerprints.push(item.fingerprint);
-              // record any set ids that were sent so we avoid re-sending them later
-              try {
-                if (item.action === 'log_set') {
-                  let parsed = item.details;
-                  if (typeof item.details === 'string') {
-                    try { parsed = JSON.parse(item.details); } catch (e) { parsed = null; }
-                  }
-                  if (parsed && Array.isArray(parsed.sets)) {
-                    const ids = parsed.sets.map(s => s && s.id).filter(Boolean);
-                    if (ids.length) addLoggedSetIds(ids);
-                  }
-                }
-              } catch (e) {}
+                  // mark this fingerprint as successfully sent
+                  sentFingerprints.push(item.fingerprint);
+                  // record any set ids that were sent so we avoid re-sending them later
+                  try {
+                    // Prefer server-reported saved ids
+                    if (res && res.ok && Array.isArray(res.saved)) {
+                      const ids = res.saved.map(s => s && s.id).filter(Boolean);
+                      if (ids.length) addLoggedSetIds(ids);
+                    } else if (item.action === 'log_efforts') {
+                      let parsed = item.details;
+                      if (typeof item.details === 'string') {
+                        try { parsed = JSON.parse(item.details); } catch (e) { parsed = null; }
+                      }
+                      if (parsed && Array.isArray(parsed.efforts)) {
+                        const ids = parsed.efforts.map(s => s && s.id).filter(Boolean);
+                        if (ids.length) addLoggedSetIds(ids);
+                      }
+                    }
+                  } catch (e) {}
             } else {
               remaining.push(item);
             }
@@ -1655,14 +1676,14 @@
               const loggedIds = new Set(loadLoggedSetIds());
               const filteredRemaining = (remaining || []).filter(r => {
                 if (!r || !r.action) return true;
-                if (r.action !== 'log_set') return true;
+                if (r.action !== 'log_efforts') return true;
                 let parsed = r.details;
                 if (typeof r.details === 'string') {
                   try { parsed = JSON.parse(r.details); } catch (e) { parsed = null; }
                 }
-                if (!parsed || !Array.isArray(parsed.sets)) return true;
-                // if ALL set ids are already logged, drop this queued item
-                const allLogged = parsed.sets.every(s => s && s.id && loggedIds.has(s.id));
+                if (!parsed || !Array.isArray(parsed.efforts)) return true;
+                // if ALL effort ids are already logged, drop this queued item
+                const allLogged = parsed.efforts.every(s => s && s.id && loggedIds.has(s.id));
                 return !allLogged;
               });
               // merge any items that failed during this run (filteredRemaining) ensuring order is preserved
@@ -1732,16 +1753,22 @@
                 } catch (e) {
                   // ignore
                 }
-                // record logged set ids for log_set
+                // record logged effort ids for log_efforts
                 try {
-                  if (item.action === 'log_set') {
-                    let parsed = item.details;
-                    if (typeof item.details === 'string') {
-                      try { parsed = JSON.parse(item.details); } catch (e) { parsed = null; }
-                    }
-                    if (parsed && Array.isArray(parsed.sets)) {
-                      const ids = parsed.sets.map(s => s && s.id).filter(Boolean);
+                  if (item.action === 'log_efforts') {
+                    // prefer server-side response if available
+                    if (res && res.ok && Array.isArray(res.saved)) {
+                      const ids = res.saved.map(s => s && s.id).filter(Boolean);
                       if (ids.length) addLoggedSetIds(ids);
+                    } else {
+                      let parsed = item.details;
+                      if (typeof item.details === 'string') {
+                        try { parsed = JSON.parse(item.details); } catch (e) { parsed = null; }
+                      }
+                      if (parsed && Array.isArray(parsed.efforts)) {
+                        const ids = parsed.efforts.map(s => s && s.id).filter(Boolean);
+                        if (ids.length) addLoggedSetIds(ids);
+                      }
                     }
                   }
                 } catch (e) {}
