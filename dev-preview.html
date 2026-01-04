@@ -33,11 +33,11 @@
   <script>
     // Fake data used by the preview. Adjust as needed.
     const MOCK_EXERCISES = [
-      { id: 'ex-bench', name: 'Bench Press', notes: '' },
-      { id: 'ex-squat', name: 'Back Squat', notes: '' },
-      { id: 'ex-row', name: 'Barbell Row', notes: '' },
-      { id: 'ex-press', name: 'Overhead Press', notes: '' },
-      { id: 'ex-dl', name: 'Deadlift', notes: '' },
+      { id: 'ex-bench', name: 'Bench Press', notes: '', plan: { weight: 80, sets: 3, reps: 5, nextDate: new Date(Date.now() + 86400000).toISOString() } },
+      { id: 'ex-squat', name: 'Back Squat', notes: '', plan: { weight: 120, sets: 3, reps: 5, nextDate: new Date(Date.now() + 86400000*2).toISOString() } },
+      { id: 'ex-row', name: 'Barbell Row', notes: '', plan: { weight: 60, sets: 3, reps: 8, nextDate: new Date(Date.now() - 86400000).toISOString() } },
+      { id: 'ex-press', name: 'Overhead Press', notes: '', plan: { weight: 50, sets: 3, reps: 5, nextDate: new Date(Date.now() + 86400000*3).toISOString() } },
+      { id: 'ex-dl', name: 'Deadlift', notes: '', plan: { weight: 140, sets: 1, reps: 5, nextDate: new Date(Date.now() + 86400000*4).toISOString() } },
       { id: 'ex-pull', name: 'Pull-ups', notes: '' }
     ];
 

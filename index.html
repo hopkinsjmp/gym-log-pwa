@@ -431,7 +431,14 @@
 
       <!-- Picker wheels for adding a new set -->
       <div style="margin-top:16px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">
-        <div style="font-weight:600; margin-bottom:10px; font-size:14px;">Log New Set</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="font-weight:600; font-size:14px;">Log New Set</div>
+          <div style="display:flex; gap:6px;">
+            <button id="loadPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Load Plan</button>
+            <button id="editPlanBtn" class="secondary" style="padding:6px 10px; font-size:12px;">Edit Plan</button>
+          </div>
+        </div>
+        <div id="planInfo" style="font-size:12px; opacity:0.7; margin-bottom:8px; display:none;"></div>
         <div style="display:flex; gap:8px;">
           <div style="flex:1">
             <div style="font-weight:500; margin-bottom:6px; font-size:13px; opacity:0.85;">Weight</div>
@@ -463,7 +470,16 @@
     function renderExercisesGrid() {
       const grid = document.getElementById('exercisesGrid');
       if (!grid) return;
-      const exercises = loadExercises();
+      let exercises = loadExercises();
+      
+      // Sort by nextDate (soonest first), then by name
+      exercises = exercises.slice().sort((a, b) => {
+        const aDate = a.plan?.nextDate ? new Date(a.plan.nextDate).getTime() : Infinity;
+        const bDate = b.plan?.nextDate ? new Date(b.plan.nextDate).getTime() : Infinity;
+        if (aDate !== bDate) return aDate - bDate;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      
       grid.innerHTML = '';
 
       // Add tile for each exercise
@@ -506,9 +522,21 @@
       const historyEl = document.getElementById('exerciseHistory');
       const addBtn = document.getElementById('quickAddSet');
       const closeBtn = document.getElementById('modalClose');
+      const loadPlanBtn = document.getElementById('loadPlanBtn');
+      const editPlanBtn = document.getElementById('editPlanBtn');
+      const planInfoEl = document.getElementById('planInfo');
 
       nameEl.textContent = exercise.name;
       historyEl.innerHTML = '<div style="opacity:0.7; font-size:14px;">Loading history...</div>';
+      
+      // Show plan info if exercise has a plan
+      if (exercise.plan && exercise.plan.weight && exercise.plan.reps) {
+        planInfoEl.textContent = `Plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} reps @ ${exercise.plan.weight}kg${exercise.plan.nextDate ? ' (next: ' + new Date(exercise.plan.nextDate).toLocaleDateString() + ')' : ''}`;
+        planInfoEl.style.display = 'block';
+      } else {
+        planInfoEl.style.display = 'none';
+      }
+      
       modal.style.display = 'flex';
 
       // Load recent sets for this exercise
@@ -537,8 +565,66 @@
 
       const wEl = document.getElementById('pickerWeight');
       const rEl = document.getElementById('pickerReps');
-      const weightPicker = buildPicker(wEl, weightValues, 20); // default 20kg
-      const repsPicker = buildPicker(rEl, repsValues, 4); // default 5 reps
+      
+      // Use plan values as defaults if available, otherwise use generic defaults
+      let defaultWeightIdx = 20;
+      let defaultRepsIdx = 4;
+      if (exercise.plan && exercise.plan.weight && exercise.plan.reps) {
+        defaultWeightIdx = Math.min(exercise.plan.weight, 200);
+        defaultRepsIdx = Math.min(exercise.plan.reps - 1, 29);
+      }
+      
+      const weightPicker = buildPicker(wEl, weightValues, defaultWeightIdx);
+      const repsPicker = buildPicker(rEl, repsValues, defaultRepsIdx);
+
+      // Load Plan button: set pickers to planned values
+      loadPlanBtn.onclick = () => {
+        if (!exercise.plan || !exercise.plan.weight || !exercise.plan.reps) {
+          return flashStatus('No plan set for this exercise', 1500);
+        }
+        // Re-build pickers with plan values selected
+        const wIdx = Math.min(exercise.plan.weight, 200);
+        const rIdx = Math.min(exercise.plan.reps - 1, 29);
+        buildPicker(wEl, weightValues, wIdx);
+        buildPicker(rEl, repsValues, rIdx);
+        flashStatus(`Loaded plan: ${exercise.plan.sets || 3} sets × ${exercise.plan.reps} @ ${exercise.plan.weight}kg`, 2000);
+      };
+
+      // Edit Plan button: prompt for plan values
+      editPlanBtn.onclick = () => {
+        const weight = prompt('Plan weight (kg):', exercise.plan?.weight || 20);
+        if (weight === null) return;
+        const reps = prompt('Plan reps:', exercise.plan?.reps || 5);
+        if (reps === null) return;
+        const sets = prompt('Plan sets:', exercise.plan?.sets || 3);
+        if (sets === null) return;
+        const nextDate = prompt('Next workout date (YYYY-MM-DD):', exercise.plan?.nextDate ? exercise.plan.nextDate.split('T')[0] : new Date(Date.now() + 86400000*2).toISOString().split('T')[0]);
+        if (nextDate === null) return;
+
+        const plan = {
+          weight: parseFloat(weight) || 0,
+          reps: parseInt(reps,10) || 0,
+          sets: parseInt(sets,10) || 0,
+          nextDate: nextDate ? new Date(nextDate).toISOString() : null
+        };
+        exercise.plan = plan;
+        
+        // Save updated exercise locally
+        const exercises = loadExercises();
+        const idx = exercises.findIndex(e => e.id === exercise.id);
+        if (idx >= 0) {
+          exercises[idx] = exercise;
+          saveExercises(exercises);
+        }
+        
+        // Sync plan to server
+        try {
+          enqueueAction('upsert_exercise', JSON.stringify(exercise));
+        } catch (e) {}
+        
+        flashStatus('Plan updated ✔️', 1500);
+        openExerciseModal(exercise); // refresh modal
+      };
 
       // Quick-add handler using pickers
       addBtn.onclick = async () => {
@@ -565,6 +651,7 @@
 
         // Refresh history and pickers
         openExerciseModal(exercise);
+        renderExercisesGrid(); // refresh tiles to update unsynced badge
       };
 
       closeBtn.onclick = () => {
